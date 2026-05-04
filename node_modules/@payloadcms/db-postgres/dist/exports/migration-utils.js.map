@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../src/exports/migration-utils.ts"],"sourcesContent":["export { getBlocksToJsonMigrator } from '@payloadcms/drizzle'\nexport { migratePostgresV2toV3 } from '@payloadcms/drizzle/postgres'\n"],"names":["getBlocksToJsonMigrator","migratePostgresV2toV3"],"mappings":"AAAA,SAASA,uBAAuB,QAAQ,sBAAqB;AAC7D,SAASC,qBAAqB,QAAQ,+BAA8B"}

@@ -1,0 +1,31 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nobelion
+      POSTGRES_USER: nobelion
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  payload:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+    environment:
+      DATABASE_URI: postgresql://nobelion:${DB_PASSWORD}@postgres:5432/nobelion
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      PORT: 3001
+    volumes:
+      - ./:/app
+    depends_on:
+      - postgres
+    ports:
+      - "3001:3001"
+
+volumes:
+  postgres_data:

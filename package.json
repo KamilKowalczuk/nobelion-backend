@@ -1,0 +1,14 @@
+{
+  "name": "nobelion-cms",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "payload dev",
+    "build": "payload build"
+  },
+  "dependencies": {
+    "@payloadcms/db-postgres": "^3.39.1",
+    "payload": "^3.39.1"
+  }
+}
