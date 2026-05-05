@@ -1,3 +1,4 @@
+import '@payloadcms/next/css';
 import { RootLayout, handleServerFunctions } from '@payloadcms/next/layouts';
 import type { ReactNode } from 'react';
 import config from '../../payload.config';
