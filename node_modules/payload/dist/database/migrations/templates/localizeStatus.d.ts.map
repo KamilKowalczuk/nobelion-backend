@@ -1,1 +1,0 @@
-{"version":3,"file":"localizeStatus.d.ts","sourceRoot":"","sources":["../../../../src/database/migrations/templates/localizeStatus.ts"],"names":[],"mappings":"AAAA;;;GAGG;AAEH,eAAO,MAAM,sBAAsB,YAAa;IAC9C,cAAc,CAAC,EAAE,MAAM,CAAA;IACvB,MAAM,EAAE,SAAS,GAAG,UAAU,GAAG,QAAQ,CAAA;IACzC,UAAU,CAAC,EAAE,MAAM,CAAA;CACpB,KAAG,MAoDH,CAAA"}

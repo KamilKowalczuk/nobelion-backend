@@ -1,31 +1,47 @@
-version: '3.9'
-
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: nobelion_postgres
     environment:
       POSTGRES_DB: nobelion
       POSTGRES_USER: nobelion
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nobelion -d nobelion"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - nobelion_net
+    restart: unless-stopped
 
   payload:
-    image: node:20-alpine
-    working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    build:
+      context: .
+    command: ["npm", "run", "start"]
+    container_name: nobelion_backend
+    env_file:
+      - .env
     environment:
       DATABASE_URI: postgresql://nobelion:${DB_PASSWORD}@postgres:5432/nobelion
-      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
       PORT: 3001
-    volumes:
-      - ./:/app
     depends_on:
-      - postgres
-    ports:
-      - "3001:3001"
+      postgres:
+        condition: service_healthy
+    expose:
+      - "3001"
+    networks:
+      - nobelion_net
+      - debian_default
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
+  postgres_data: null
+
+networks:
+  nobelion_net: null
+  debian_default:
+    external: true

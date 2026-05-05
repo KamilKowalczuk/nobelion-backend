@@ -4,11 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "payload dev",
-    "build": "payload build"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
-    "@payloadcms/db-postgres": "^3.39.1",
-    "payload": "^3.39.1"
+    "@payloadcms/db-postgres": "^3.84.1",
+    "@payloadcms/next": "^3.84.1",
+    "next": "15.4.11",
+    "payload": "^3.84.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }
