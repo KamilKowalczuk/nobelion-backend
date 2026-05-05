@@ -10,7 +10,8 @@ export default buildConfig({
     db: postgresAdapter({
         pool: {
             connectionString: process.env.DATABASE_URI
-        }
+        },
+        push: true
     }),
     admin: {
         user: 'users'

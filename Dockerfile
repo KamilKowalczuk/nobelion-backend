@@ -15,8 +15,13 @@ ENV NODE_ENV=production
 ENV PORT=3001
 ENV HOSTNAME=0.0.0.0
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/tsconfig.json ./
+COPY --from=builder /app/payload.config.ts ./
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 USER nextjs
 EXPOSE 3001
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "npx payload migrate --yes && node server.js"]
