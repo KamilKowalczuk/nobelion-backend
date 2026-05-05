@@ -21,7 +21,6 @@ services:
   payload:
     build:
       context: .
-    command: ["npm", "run", "start"]
     container_name: nobelion_backend
     env_file:
       - .env
