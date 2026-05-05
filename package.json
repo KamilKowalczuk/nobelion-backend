@@ -15,5 +15,8 @@
     "payload": "^3.84.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }
