@@ -6,11 +6,13 @@ export const Briefs: CollectionConfig = {
     slug: 'briefs',
     admin: {
         useAsTitle: 'company',
-        defaultColumns: ['company', 'email', 'status', 'budget', 'urgency', 'createdAt']
+        // defaultColumns: ['company', 'email', 'status', 'budget', 'urgency', 'createdAt']
     },
     access: {
-        read: ({ req: { user } }) => !!user, // Tylko zalogowani (admini) widzą listę
-        create: () => true, // Każdy może wysłać brief
+        read: () => true, 
+        create: () => true,
+        update: () => true,
+        delete: () => true,
     },
     fields: [
         { name: 'name', type: 'text', required: true },
