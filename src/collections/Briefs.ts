@@ -1,9 +1,6 @@
 import type { CollectionConfig } from 'payload';
 import { sendQuoteEmail } from '../services/email';
-import { randomBytes } from 'crypto';
-import Stripe from 'stripe';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2026-04-22.dahlia' });
+import { generateToken, createStripeSession } from '../services/briefs';
 
 export const Briefs: CollectionConfig = {
     slug: 'briefs',
@@ -85,7 +82,7 @@ export const Briefs: CollectionConfig = {
             async ({ data, req, operation, originalDoc }) => {
                 // Wygeneruj bezpieczny token jeśli nie istnieje
                 if (!data.quoteToken) {
-                    data.quoteToken = randomBytes(16).toString('hex');
+                    data.quoteToken = generateToken();
                 }
 
                 // Jeśli zaznaczono checkbox do wysyłki maila, wyślij i zresetuj
@@ -169,7 +166,7 @@ export const Briefs: CollectionConfig = {
                     : `Opłata całościowa - Wycena projektu dla ${brief.company}`;
 
                 try {
-                    const session = await stripe.checkout.sessions.create({
+                    const session = await createStripeSession({
                         payment_method_types: ['card', 'blik', 'p24'],
                         line_items: [
                             {
