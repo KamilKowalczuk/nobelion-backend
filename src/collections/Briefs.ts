@@ -11,6 +11,10 @@ export const Briefs: CollectionConfig = {
         useAsTitle: 'company',
         defaultColumns: ['company', 'email', 'status', 'budget', 'urgency', 'createdAt']
     },
+    access: {
+        read: ({ req: { user } }) => !!user, // Tylko zalogowani (admini) widzą listę
+        create: () => true, // Każdy może wysłać brief
+    },
     fields: [
         { name: 'name', type: 'text', required: true },
         { name: 'email', type: 'email', required: true },
