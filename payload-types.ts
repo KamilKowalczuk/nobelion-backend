@@ -161,6 +161,13 @@ export interface Brief {
   peopleInvolved?: string | null;
   urgency?: ('low' | 'medium' | 'high' | 'urgent') | null;
   hoursWeek?: number | null;
+  proposedPrice?: number | null;
+  /**
+   * Po zaznaczeniu i zapisaniu, klient otrzyma email. Checkbox zostanie automatycznie odznaczony po wysyłce.
+   */
+  triggerQuoteEmail?: boolean | null;
+  quoteSentAt?: string | null;
+  quoteToken?: string | null;
   agreedPrivacy: boolean;
   agreedTerms: boolean;
   status?: ('new' | 'contacted' | 'quoted' | 'won' | 'lost') | null;
@@ -321,6 +328,10 @@ export interface BriefsSelect<T extends boolean = true> {
   peopleInvolved?: T;
   urgency?: T;
   hoursWeek?: T;
+  proposedPrice?: T;
+  triggerQuoteEmail?: T;
+  quoteSentAt?: T;
+  quoteToken?: T;
   agreedPrivacy?: T;
   agreedTerms?: T;
   status?: T;
