@@ -16,8 +16,6 @@ services:
       start_period: 10s
     networks:
       - nobelion_net
-    ports:
-      - "5445:5432"
     restart: unless-stopped
 
   payload:
