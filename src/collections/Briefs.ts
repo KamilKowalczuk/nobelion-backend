@@ -124,29 +124,34 @@ export const Briefs: CollectionConfig = {
     hooks: {
         beforeChange: [
             async ({ data, req, operation, originalDoc }) => {
-                // Wygeneruj bezpieczny token jeśli nie istnieje
-                if (!data.quoteToken) {
-                    data.quoteToken = generateToken();
-                }
-
-                // Jeśli zaznaczono checkbox do wysyłki maila, wyślij i zresetuj
-                if (data.triggerQuoteEmail === true && data.proposedPrice) {
-                    await sendQuoteEmail({
-                        to: data.clientEmail,
-                        companyName: data.company,
-                        quoteAmount: data.proposedPrice,
-                        briefId: data.quoteToken // Używamy tokenu do linku
-                    });
-                    
-                    data.triggerQuoteEmail = false; // Reset checkboxa
-                    data.quoteSentAt = new Date().toISOString(); // Zapisz czas wysyłki
-                    
-                    // Opcjonalnie zaktualizuj status na 'quoted' jeśli jest inny
-                    if (data.status !== 'won' && data.status !== 'lost') {
-                        data.status = 'quoted';
+                try {
+                    // Wygeneruj bezpieczny token jeśli nie istnieje
+                    if (!data.quoteToken) {
+                        data.quoteToken = generateToken();
                     }
+
+                    // Jeśli zaznaczono checkbox do wysyłki maila, wyślij i zresetuj
+                    if (data.triggerQuoteEmail === true && data.proposedPrice) {
+                        await sendQuoteEmail({
+                            to: data.clientEmail,
+                            companyName: data.company,
+                            quoteAmount: data.proposedPrice,
+                            briefId: data.quoteToken // Używamy tokenu do linku
+                        });
+                        
+                        data.triggerQuoteEmail = false; // Reset checkboxa
+                        data.quoteSentAt = new Date().toISOString(); // Zapisz czas wysyłki
+                        
+                        // Opcjonalnie zaktualizuj status na 'quoted' jeśli jest inny
+                        if (data.status !== 'won' && data.status !== 'lost') {
+                            data.status = 'quoted';
+                        }
+                    }
+                    return data;
+                } catch (err) {
+                    console.error('[Briefs Hook Error]:', err);
+                    throw err;
                 }
-                return data;
             }
         ]
     },
