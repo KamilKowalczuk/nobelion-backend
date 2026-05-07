@@ -6,7 +6,7 @@ export const Briefs: CollectionConfig = {
     slug: 'briefs',
     admin: {
         useAsTitle: 'company',
-        defaultColumns: ['company', 'email', 'status', 'budget', 'urgency', 'createdAt']
+        defaultColumns: ['company', 'clientEmail', 'status', 'budget', 'urgency', 'createdAt']
     },
     labels: {
         singular: 'Brief',
@@ -36,8 +36,8 @@ export const Briefs: CollectionConfig = {
         { name: 'size', type: 'text', label: 'Wielkość zespołu' },
         { name: 'tools', type: 'text', label: 'Główne narzędzia' },
         // --- Dane kontaktowe ---
-        { name: 'name', type: 'text', label: 'Imię i nazwisko', required: true },
-        { name: 'email', type: 'email', label: 'Email', required: true },
+        { name: 'clientName', type: 'text', label: 'Imię i nazwisko', required: true },
+        { name: 'clientEmail', type: 'email', label: 'Email', required: true },
         { name: 'phone', type: 'text', label: 'Telefon' },
         { name: 'company', type: 'text', label: 'Nazwa firmy', required: true },
         { name: 'nip', type: 'text', label: 'NIP' },
@@ -132,7 +132,7 @@ export const Briefs: CollectionConfig = {
                 // Jeśli zaznaczono checkbox do wysyłki maila, wyślij i zresetuj
                 if (data.triggerQuoteEmail === true && data.proposedPrice) {
                     await sendQuoteEmail({
-                        to: data.email,
+                        to: data.clientEmail,
                         companyName: data.company,
                         quoteAmount: data.proposedPrice,
                         briefId: data.quoteToken // Używamy tokenu do linku
@@ -228,7 +228,7 @@ export const Briefs: CollectionConfig = {
                         mode: 'payment',
                         success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
                         cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
-                        customer_email: brief.email,
+                        customer_email: brief.clientEmail,
                         metadata: {
                             briefId: String(brief.id),
                             paymentModel: is50Percent ? '50' : '100',

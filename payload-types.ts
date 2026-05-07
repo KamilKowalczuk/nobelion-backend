@@ -125,8 +125,12 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  role?: ('admin' | 'api') | null;
   updatedAt: string;
   createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
   email: string;
   resetPasswordToken?: string | null;
   resetPasswordExpiration?: string | null;
@@ -154,8 +158,8 @@ export interface Brief {
   industry?: string | null;
   size?: string | null;
   tools?: string | null;
-  name: string;
-  email: string;
+  clientName: string;
+  clientEmail: string;
   phone?: string | null;
   company: string;
   nip?: string | null;
@@ -310,8 +314,12 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  role?: T;
   updatedAt?: T;
   createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
   email?: T;
   resetPasswordToken?: T;
   resetPasswordExpiration?: T;
@@ -336,8 +344,8 @@ export interface BriefsSelect<T extends boolean = true> {
   industry?: T;
   size?: T;
   tools?: T;
-  name?: T;
-  email?: T;
+  clientName?: T;
+  clientEmail?: T;
   phone?: T;
   company?: T;
   nip?: T;
