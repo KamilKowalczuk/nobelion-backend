@@ -24,4 +24,4 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 USER nextjs
 EXPOSE 3001
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "npx payload migrate --yes && node server.js"]
