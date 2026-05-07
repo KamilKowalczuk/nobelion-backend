@@ -13,26 +13,59 @@ export const Briefs: CollectionConfig = {
         create: () => true,
     },
     fields: [
+        // --- Krok 1: Diagnoza ---
+        {
+            name: 'diagnosis',
+            type: 'select',
+            label: 'Diagnoza',
+            options: [
+                { label: 'Powtarzalna praca biurowa', value: 'biuro' },
+                { label: 'Strona nie sprzedaje', value: 'strona' },
+                { label: 'Sprzedaż potrzebuje boostu', value: 'sprzedaz' },
+                { label: 'Mam wizję, potrzebuję exekucji', value: 'wizja' }
+            ]
+        },
+        // --- Krok 2: Kontekst ---
+        { name: 'industry', type: 'text', label: 'Branża' },
+        { name: 'size', type: 'text', label: 'Wielkość zespołu' },
+        { name: 'tools', type: 'text', label: 'Główne narzędzia' },
+        // --- Krok 7: Kontakt ---
         { name: 'name', type: 'text', required: true },
         { name: 'email', type: 'email', required: true },
         { name: 'phone', type: 'text' },
         { name: 'company', type: 'text', required: true },
         { name: 'nip', type: 'text' },
+        // --- Krok 3: Problem ---
         { name: 'problemDescription', type: 'textarea', required: true },
-        { name: 'budget', type: 'text' },
-        { name: 'timeline', type: 'text' },
+        // --- Krok 4: Skala ---
+        { name: 'hoursWeek', type: 'number' },
         { name: 'peopleInvolved', type: 'text' },
+        { name: 'growsWithScale', type: 'text', label: 'Czy problem rośnie ze skalą?' },
+        // --- Krok 5: Co próbowaliście ---
+        { name: 'triedBefore', type: 'json', label: 'Co próbowaliście wcześniej' },
+        { name: 'triedNotes', type: 'textarea', label: 'Notatki - co nie zadziałało' },
+        // --- Krok 6: Ramy ---
         {
             name: 'urgency',
             type: 'select',
             options: [
-                { label: 'Niska', value: 'low' },
-                { label: 'Średnia', value: 'medium' },
-                { label: 'Wysoka', value: 'high' },
-                { label: 'Pilna', value: 'urgent' }
+                { label: 'Wczoraj, palące', value: 'palace' },
+                { label: 'W tym miesiącu', value: 'miesiac' },
+                { label: 'W kwartale', value: 'kwartal' },
+                { label: 'Rozważam, brak deadline', value: 'rozwazam' }
             ]
         },
-        { name: 'hoursWeek', type: 'number' },
+        {
+            name: 'scope',
+            type: 'select',
+            label: 'Zakres',
+            options: [
+                { label: 'Tylko MVP', value: 'mvp' },
+                { label: 'Pełny system', value: 'pelny' },
+                { label: 'Nie wiem, doradzcie', value: 'doradzcie' }
+            ]
+        },
+        { name: 'budget', type: 'text' },
         { 
             name: 'proposedPrice', 
             type: 'number', 

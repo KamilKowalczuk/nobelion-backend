@@ -150,17 +150,32 @@ export interface User {
  */
 export interface Brief {
   id: number;
+  diagnosis?: ('biuro' | 'strona' | 'sprzedaz' | 'wizja') | null;
+  industry?: string | null;
+  size?: string | null;
+  tools?: string | null;
   name: string;
   email: string;
   phone?: string | null;
   company: string;
   nip?: string | null;
   problemDescription: string;
-  budget?: string | null;
-  timeline?: string | null;
-  peopleInvolved?: string | null;
-  urgency?: ('low' | 'medium' | 'high' | 'urgent') | null;
   hoursWeek?: number | null;
+  peopleInvolved?: string | null;
+  growsWithScale?: string | null;
+  triedBefore?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  triedNotes?: string | null;
+  urgency?: ('palace' | 'miesiac' | 'kwartal' | 'rozwazam') | null;
+  scope?: ('mvp' | 'pelny' | 'doradzcie') | null;
+  budget?: string | null;
   proposedPrice?: number | null;
   /**
    * Po zaznaczeniu i zapisaniu, klient otrzyma email. Checkbox zostanie automatycznie odznaczony po wysyłce.
@@ -317,17 +332,24 @@ export interface UsersSelect<T extends boolean = true> {
  * via the `definition` "briefs_select".
  */
 export interface BriefsSelect<T extends boolean = true> {
+  diagnosis?: T;
+  industry?: T;
+  size?: T;
+  tools?: T;
   name?: T;
   email?: T;
   phone?: T;
   company?: T;
   nip?: T;
   problemDescription?: T;
-  budget?: T;
-  timeline?: T;
-  peopleInvolved?: T;
-  urgency?: T;
   hoursWeek?: T;
+  peopleInvolved?: T;
+  growsWithScale?: T;
+  triedBefore?: T;
+  triedNotes?: T;
+  urgency?: T;
+  scope?: T;
+  budget?: T;
   proposedPrice?: T;
   triggerQuoteEmail?: T;
   quoteSentAt?: T;
