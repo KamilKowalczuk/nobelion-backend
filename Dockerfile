@@ -7,7 +7,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN PAYLOAD_SECRET=temporary_secret_for_build_only npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
