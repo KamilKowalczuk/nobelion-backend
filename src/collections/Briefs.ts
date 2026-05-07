@@ -13,8 +13,10 @@ export const Briefs: CollectionConfig = {
         plural: 'Briefy',
     },
     access: {
-        read: ({ req: { user } }) => !!user, 
-        create: () => true,
+        read: ({ req: { user } }) => !!user,
+        create: ({ req: { user } }) => !!user,
+        update: ({ req: { user } }) => !!user,
+        delete: ({ req: { user } }) => !!user,
     },
     fields: [
         // --- Krok 1: Diagnoza ---

@@ -10,6 +10,12 @@ export const Orders: CollectionConfig = {
         singular: 'Zamówienie',
         plural: 'Zamówienia',
     },
+    access: {
+        read: ({ req: { user } }) => !!user,
+        create: ({ req: { user } }) => !!user,
+        update: ({ req: { user } }) => !!user,
+        delete: ({ req: { user } }) => !!user,
+    },
     fields: [
         { name: 'orderNumber', type: 'text', label: 'Numer zamówienia' },
         {
