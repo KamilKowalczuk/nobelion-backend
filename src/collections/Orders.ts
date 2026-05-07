@@ -12,7 +12,7 @@ export const Orders: CollectionConfig = {
     },
     access: {
         read: ({ req: { user } }) => !!user,
-        create: ({ req: { user } }) => !!user,
+        create: () => true,
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
     },
