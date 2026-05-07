@@ -29,25 +29,26 @@ export const Briefs: CollectionConfig = {
         { name: 'industry', type: 'text', label: 'Branża' },
         { name: 'size', type: 'text', label: 'Wielkość zespołu' },
         { name: 'tools', type: 'text', label: 'Główne narzędzia' },
-        // --- Krok 7: Kontakt ---
-        { name: 'name', type: 'text', required: true },
-        { name: 'email', type: 'email', required: true },
-        { name: 'phone', type: 'text' },
-        { name: 'company', type: 'text', required: true },
-        { name: 'nip', type: 'text' },
+        // --- Dane kontaktowe ---
+        { name: 'name', type: 'text', label: 'Imię i nazwisko', required: true },
+        { name: 'email', type: 'email', label: 'Email', required: true },
+        { name: 'phone', type: 'text', label: 'Telefon' },
+        { name: 'company', type: 'text', label: 'Nazwa firmy', required: true },
+        { name: 'nip', type: 'text', label: 'NIP' },
         // --- Krok 3: Problem ---
-        { name: 'problemDescription', type: 'textarea', required: true },
+        { name: 'problemDescription', type: 'textarea', label: 'Opis problemu', required: true },
         // --- Krok 4: Skala ---
-        { name: 'hoursWeek', type: 'number' },
-        { name: 'peopleInvolved', type: 'text' },
+        { name: 'hoursWeek', type: 'number', label: 'Godziny tygodniowo' },
+        { name: 'peopleInvolved', type: 'text', label: 'Ile osób zaangażowanych' },
         { name: 'growsWithScale', type: 'text', label: 'Czy problem rośnie ze skalą?' },
         // --- Krok 5: Co próbowaliście ---
         { name: 'triedBefore', type: 'json', label: 'Co próbowaliście wcześniej' },
-        { name: 'triedNotes', type: 'textarea', label: 'Notatki - co nie zadziałało' },
+        { name: 'triedNotes', type: 'textarea', label: 'Notatki — co nie zadziałało' },
         // --- Krok 6: Ramy ---
         {
             name: 'urgency',
             type: 'select',
+            label: 'Pilność',
             options: [
                 { label: 'Wczoraj, palące', value: 'palace' },
                 { label: 'W tym miesiącu', value: 'miesiac' },
@@ -58,14 +59,15 @@ export const Briefs: CollectionConfig = {
         {
             name: 'scope',
             type: 'select',
-            label: 'Zakres',
+            label: 'Zakres projektu',
             options: [
                 { label: 'Tylko MVP', value: 'mvp' },
                 { label: 'Pełny system', value: 'pelny' },
                 { label: 'Nie wiem, doradzcie', value: 'doradzcie' }
             ]
         },
-        { name: 'budget', type: 'text' },
+        { name: 'budget', type: 'text', label: 'Budżet orientacyjny' },
+        // --- Wycena (admin) ---
         { 
             name: 'proposedPrice', 
             type: 'number', 
@@ -85,20 +87,23 @@ export const Briefs: CollectionConfig = {
         },
         { 
             name: 'quoteSentAt', 
-            type: 'date', 
+            type: 'date',
+            label: 'Data wysyłki wyceny',
             admin: { readOnly: true, position: 'sidebar' } 
         },
         {
             name: 'quoteToken',
             type: 'text',
+            label: 'Token wyceny',
             unique: true,
             admin: { readOnly: true, position: 'sidebar' }
         },
-        { name: 'agreedPrivacy', type: 'checkbox', required: true },
-        { name: 'agreedTerms', type: 'checkbox', required: true },
+        { name: 'agreedPrivacy', type: 'checkbox', label: 'Zgoda na politykę prywatności', required: true },
+        { name: 'agreedTerms', type: 'checkbox', label: 'Akceptacja regulaminu', required: true },
         {
             name: 'status',
             type: 'select',
+            label: 'Status',
             defaultValue: 'new',
             options: [
                 { label: 'Nowy', value: 'new' },
@@ -108,7 +113,7 @@ export const Briefs: CollectionConfig = {
                 { label: 'Przegrany', value: 'lost' }
             ]
         },
-        { name: 'source', type: 'text', defaultValue: 'brief-form' }
+        { name: 'source', type: 'text', label: 'Źródło', defaultValue: 'brief-form' }
     ],
     hooks: {
         beforeChange: [
