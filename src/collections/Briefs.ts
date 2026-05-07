@@ -8,6 +8,10 @@ export const Briefs: CollectionConfig = {
         useAsTitle: 'company',
         defaultColumns: ['company', 'email', 'status', 'budget', 'urgency', 'createdAt']
     },
+    labels: {
+        singular: 'Brief',
+        plural: 'Briefy',
+    },
     access: {
         read: ({ req: { user } }) => !!user, 
         create: () => true,
