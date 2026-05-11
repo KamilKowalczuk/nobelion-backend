@@ -12,6 +12,13 @@ export const Users: CollectionConfig = {
         singular: 'Użytkownik',
         plural: 'Użytkownicy',
     },
+    access: {
+        read: ({ req: { user } }) => !!user,
+        create: ({ req: { user } }) => !!user,
+        update: ({ req: { user } }) => !!user,
+        delete: ({ req: { user } }) => !!user,
+        admin: ({ req: { user } }) => !!user,
+    },
     fields: [
         {
             name: 'role',
