@@ -1,11 +1,9 @@
 import { buildConfig } from 'payload';
 import { postgresAdapter } from '@payloadcms/db-postgres';
-import { sql } from '@payloadcms/db-postgres';
 import {
     BoldFeature,
     ItalicFeature,
     LinkFeature,
-    ParagraphFeature,
     lexicalEditor,
     UnderlineFeature,
 } from '@payloadcms/richtext-lexical';
@@ -27,8 +25,9 @@ export default buildConfig({
     onInit: async (payload) => {
         if (payload.db.adapter.name === 'postgres') {
             try {
-                // Mechanizm "Self-Healing" - upewnienie się, że krytyczne tabele Quotes istnieją
-                // Pomija błędy jeśli migracje Payload są zablokowane na produkcji
+                // Importujemy sql dynamicznie, aby nie trafił do bundle'a przeglądarkowego
+                const { sql } = await import('@payloadcms/db-postgres');
+                
                 await payload.db.drizzle.execute(sql`
                     DO $$ BEGIN
                         CREATE TYPE "public"."enum_quotes_status" AS ENUM('draft', 'sent', 'accepted', 'rejected');
