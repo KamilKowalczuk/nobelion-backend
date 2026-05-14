@@ -70,6 +70,7 @@ export interface Config {
     users: User;
     briefs: Brief;
     orders: Order;
+    quotes: Quote;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -80,6 +81,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     briefs: BriefsSelect<false> | BriefsSelect<true>;
     orders: OrdersSelect<false> | OrdersSelect<true>;
+    quotes: QuotesSelect<false> | QuotesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -180,46 +182,6 @@ export interface Brief {
   urgency?: ('palace' | 'miesiac' | 'kwartal' | 'rozwazam') | null;
   scope?: ('mvp' | 'pelny' | 'doradzcie') | null;
   budget?: string | null;
-  proposedPrice?: number | null;
-  /**
-   * Opisz w jaki sposób zostanie zrealizowany projekt, użyte technologie i etapy.
-   */
-  projectPlan?: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  } | null;
-  /**
-   * Podaj kwotę jeśli projekt obejmuje opcjonalne utrzymanie.
-   */
-  monthlyMaintenancePrice?: number | null;
-  /**
-   * Co wchodzi w skład utrzymania miesięcznego? (np. 10 roboczogodzin, SLA 24h, monitoring).
-   */
-  maintenanceDescription?: string | null;
-  changeRequests?:
-    | {
-        message?: string | null;
-        date?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Po zaznaczeniu i zapisaniu, klient otrzyma email. Checkbox zostanie automatycznie odznaczony po wysyłce.
-   */
-  triggerQuoteEmail?: boolean | null;
-  quoteSentAt?: string | null;
-  quoteToken?: string | null;
   agreedPrivacy: boolean;
   agreedTerms: boolean;
   status?: ('new' | 'contacted' | 'quoted' | 'change_requested' | 'won' | 'lost') | null;
@@ -266,6 +228,68 @@ export interface Order {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "quotes".
+ */
+export interface Quote {
+  id: number;
+  title: string;
+  brief: number | Brief;
+  status?: ('draft' | 'sent' | 'accepted' | 'rejected') | null;
+  quoteToken?: string | null;
+  content?:
+    | (
+        | {
+            text?: {
+              root: {
+                type: string;
+                children: {
+                  type: any;
+                  version: number;
+                  [k: string]: unknown;
+                }[];
+                direction: ('ltr' | 'rtl') | null;
+                format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+                indent: number;
+                version: number;
+              };
+              [k: string]: unknown;
+            } | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'richText';
+          }
+        | {
+            phaseName: string;
+            description?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'timeline';
+          }
+      )[]
+    | null;
+  totalPrice: number;
+  maintenancePrice?: number | null;
+  maintenanceDescription?: string | null;
+  clientSelectedMaintenance?: boolean | null;
+  /**
+   * Aktualizowane przez webhook Stripe.
+   */
+  paymentStatus?: ('unpaid' | 'paid_half' | 'paid_full') | null;
+  orderId?: (number | null) | Order;
+  quoteSentAt?: string | null;
+  /**
+   * Zaznacz to pole i kliknij Zapisz, aby wysłać maila do klienta.
+   */
+  actionSendQuote?: boolean | null;
+  /**
+   * Wysyła maila z linkiem do podpięcia karty na poczet abonamentu za utrzymanie.
+   */
+  actionSendSubscription?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -299,6 +323,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'orders';
         value: number | Order;
+      } | null)
+    | ({
+        relationTo: 'quotes';
+        value: number | Quote;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -391,20 +419,6 @@ export interface BriefsSelect<T extends boolean = true> {
   urgency?: T;
   scope?: T;
   budget?: T;
-  proposedPrice?: T;
-  projectPlan?: T;
-  monthlyMaintenancePrice?: T;
-  maintenanceDescription?: T;
-  changeRequests?:
-    | T
-    | {
-        message?: T;
-        date?: T;
-        id?: T;
-      };
-  triggerQuoteEmail?: T;
-  quoteSentAt?: T;
-  quoteToken?: T;
   agreedPrivacy?: T;
   agreedTerms?: T;
   status?: T;
@@ -445,6 +459,46 @@ export interface OrdersSelect<T extends boolean = true> {
         invoiceStatus?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "quotes_select".
+ */
+export interface QuotesSelect<T extends boolean = true> {
+  title?: T;
+  brief?: T;
+  status?: T;
+  quoteToken?: T;
+  content?:
+    | T
+    | {
+        richText?:
+          | T
+          | {
+              text?: T;
+              id?: T;
+              blockName?: T;
+            };
+        timeline?:
+          | T
+          | {
+              phaseName?: T;
+              description?: T;
+              id?: T;
+              blockName?: T;
+            };
+      };
+  totalPrice?: T;
+  maintenancePrice?: T;
+  maintenanceDescription?: T;
+  clientSelectedMaintenance?: T;
+  paymentStatus?: T;
+  orderId?: T;
+  quoteSentAt?: T;
+  actionSendQuote?: T;
+  actionSendSubscription?: T;
   updatedAt?: T;
   createdAt?: T;
 }

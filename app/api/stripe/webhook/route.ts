@@ -31,6 +31,7 @@ export async function POST(req: Request) {
     const payload = await getPayload({ config: configPromise });
 
     const briefId = session.metadata?.briefId;
+    const quoteId = session.metadata?.quoteId;
     const paymentModel = session.metadata?.paymentModel;
     const isFirstTranche = session.metadata?.isFirstTranche === 'true';
 
@@ -65,8 +66,23 @@ export async function POST(req: Request) {
         }
       });
       console.log(`[Stripe Webhook] Utworzono Order ID: ${orderDoc.id}`);
+
+      // Zaktualizuj Wycenę (Quotes)
+      if (quoteId) {
+          const newPaymentStatus = isFirstTranche ? 'paid_half' : 'paid_full';
+          await payload.update({
+              collection: 'quotes',
+              id: parseInt(quoteId, 10),
+              data: {
+                  paymentStatus: newPaymentStatus,
+                  orderId: orderDoc.id
+              }
+          });
+          console.log(`[Stripe Webhook] Zaktualizowano status Wyceny ${quoteId} na ${newPaymentStatus}`);
+      }
+
     } catch (e) {
-      console.error(`[Stripe Webhook] Błąd tworzenia Order:`, e);
+      console.error(`[Stripe Webhook] Błąd tworzenia Order lub aktualizacji Wyceny:`, e);
       return new Response('Błąd bazy danych', { status: 500 });
     }
 
