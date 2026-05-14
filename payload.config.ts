@@ -1,5 +1,6 @@
 import { buildConfig } from 'payload';
 import { postgresAdapter } from '@payloadcms/db-postgres';
+import { sql } from '@payloadcms/db-postgres';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import { Briefs } from './src/collections/Briefs';
 import { Orders } from './src/collections/Orders';
@@ -8,6 +9,74 @@ import { Quotes } from './src/collections/Quotes';
 
 export default buildConfig({
     editor: lexicalEditor({}),
+    onInit: async (payload) => {
+        if (payload.db.adapter.name === 'postgres') {
+            try {
+                // Mechanizm "Self-Healing" - upewnienie się, że krytyczne tabele Quotes istnieją
+                // Pomija błędy jeśli migracje Payload są zablokowane na produkcji
+                await payload.db.drizzle.execute(sql`
+                    DO $$ BEGIN
+                        CREATE TYPE "public"."enum_quotes_status" AS ENUM('draft', 'sent', 'accepted', 'rejected');
+                    EXCEPTION WHEN duplicate_object THEN null; END $$;
+                    
+                    DO $$ BEGIN
+                        CREATE TYPE "public"."enum_quotes_payment_status" AS ENUM('unpaid', 'paid_half', 'paid_full');
+                    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                    CREATE TABLE IF NOT EXISTS "quotes" (
+                        "id" serial PRIMARY KEY,
+                        "title" varchar NOT NULL,
+                        "brief_id" integer NOT NULL,
+                        "status" "enum_quotes_status" DEFAULT 'draft',
+                        "quote_token" varchar,
+                        "total_price" numeric NOT NULL,
+                        "maintenance_price" numeric,
+                        "maintenance_description" varchar,
+                        "client_selected_maintenance" boolean DEFAULT false,
+                        "payment_status" "enum_quotes_payment_status" DEFAULT 'unpaid',
+                        "order_id_id" integer,
+                        "quote_sent_at" timestamp(3) with time zone,
+                        "action_send_quote" boolean,
+                        "action_send_subscription" boolean,
+                        "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+                        "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+                    );
+
+                    CREATE TABLE IF NOT EXISTS "quotes_blocks_rich_text" (
+                        "_order" integer NOT NULL,
+                        "_parent_id" integer NOT NULL,
+                        "_path" text NOT NULL,
+                        "id" varchar PRIMARY KEY NOT NULL,
+                        "text" jsonb,
+                        "block_name" varchar
+                    );
+
+                    CREATE TABLE IF NOT EXISTS "quotes_blocks_timeline" (
+                        "_order" integer NOT NULL,
+                        "_parent_id" integer NOT NULL,
+                        "_path" text NOT NULL,
+                        "id" varchar PRIMARY KEY NOT NULL,
+                        "phase_name" varchar NOT NULL,
+                        "description" varchar,
+                        "block_name" varchar
+                    );
+
+                    -- Indeksy i klucze (idempotentne)
+                    CREATE INDEX IF NOT EXISTS "quotes_brief_idx" ON "quotes" ("brief_id");
+                    DO $$ BEGIN
+                        ALTER TABLE "quotes" ADD CONSTRAINT "quotes_brief_id_briefs_id_fk" FOREIGN KEY ("brief_id") REFERENCES "public"."briefs"("id") ON DELETE SET NULL;
+                    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                    DO $$ BEGIN
+                        ALTER TABLE "quotes" ADD CONSTRAINT "quotes_order_id_id_orders_id_fk" FOREIGN KEY ("order_id_id") REFERENCES "public"."orders"("id") ON DELETE SET NULL;
+                    EXCEPTION WHEN duplicate_object THEN null; END $$;
+                `);
+                console.log('[Nobelion CMS] Baza danych Quotes zweryfikowana pomyślnie.');
+            } catch (err) {
+                console.error('[Nobelion CMS] Błąd podczas auto-naprawy bazy danych:', err);
+            }
+        }
+    },
     secret: process.env.PAYLOAD_SECRET || 'replace-me',
     cors: ['https://nobelion.pl', 'https://www.nobelion.pl', 'https://admin.nobelion.pl', 'http://localhost:4321', 'http://localhost:3000', 'http://localhost:3001'],
     csrf: ['https://nobelion.pl', 'https://www.nobelion.pl', 'https://admin.nobelion.pl', 'http://localhost:4321', 'http://localhost:3000', 'http://localhost:3001'],
