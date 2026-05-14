@@ -1,14 +1,29 @@
 import { buildConfig } from 'payload';
 import { postgresAdapter } from '@payloadcms/db-postgres';
 import { sql } from '@payloadcms/db-postgres';
-import { lexicalEditor } from '@payloadcms/richtext-lexical';
+import {
+    BoldFeature,
+    ItalicFeature,
+    LinkFeature,
+    ParagraphFeature,
+    lexicalEditor,
+    UnderlineFeature,
+} from '@payloadcms/richtext-lexical';
 import { Briefs } from './src/collections/Briefs';
 import { Orders } from './src/collections/Orders';
 import { Users } from './src/collections/Users';
 import { Quotes } from './src/collections/Quotes';
 
 export default buildConfig({
-    editor: lexicalEditor({}),
+    editor: lexicalEditor({
+        features: ({ defaultFeatures }) => [
+            ...defaultFeatures,
+            BoldFeature(),
+            ItalicFeature(),
+            UnderlineFeature(),
+            LinkFeature({}),
+        ],
+    }),
     onInit: async (payload) => {
         if (payload.db.adapter.name === 'postgres') {
             try {
@@ -36,6 +51,7 @@ export default buildConfig({
                         "payment_status" "enum_quotes_payment_status" DEFAULT 'unpaid',
                         "order_id_id" integer,
                         "quote_sent_at" timestamp(3) with time zone,
+                        "subscription_sent_at" timestamp(3) with time zone,
                         "action_send_quote" boolean,
                         "action_send_subscription" boolean,
                         "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
@@ -63,6 +79,9 @@ export default buildConfig({
 
                     -- Indeksy i klucze (idempotentne)
                     CREATE INDEX IF NOT EXISTS "quotes_brief_idx" ON "quotes" ("brief_id");
+                    
+                    ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_sent_at" timestamp(3) with time zone;
+
                     DO $$ BEGIN
                         ALTER TABLE "quotes" ADD CONSTRAINT "quotes_brief_id_briefs_id_fk" FOREIGN KEY ("brief_id") REFERENCES "public"."briefs"("id") ON DELETE SET NULL;
                     EXCEPTION WHEN duplicate_object THEN null; END $$;

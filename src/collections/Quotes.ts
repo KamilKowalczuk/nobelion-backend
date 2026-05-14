@@ -113,20 +113,38 @@ export const Quotes: CollectionConfig = {
                     ]
                 },
                 {
-                    label: 'Akcje wysyłki',
+                    label: 'Logi i Akcje',
                     fields: [
-                        { name: 'quoteSentAt', type: 'date', label: 'Data ostatniej wysyłki wyceny', admin: { readOnly: true } },
+                        { 
+                            name: 'quoteSentAt', 
+                            type: 'date', 
+                            label: 'Data ostatniej wysyłki wyceny', 
+                            admin: { readOnly: true, width: '50%' } 
+                        },
+                        { 
+                            name: 'subscriptionSentAt', 
+                            type: 'date', 
+                            label: 'Data wysyłki linku subskrypcji', 
+                            admin: { readOnly: true, width: '50%' } 
+                        },
                         {
                             name: 'actionSendQuote',
                             type: 'checkbox',
-                            label: 'WYŚLIJ WYCENĘ DO KLIENTA (Zapisz, aby wysłać)',
-                            admin: { description: 'Zaznacz to pole i kliknij Zapisz, aby wysłać maila do klienta.' }
+                            admin: { hidden: true }
                         },
                         {
                             name: 'actionSendSubscription',
                             type: 'checkbox',
-                            label: 'WYŚLIJ LINK DO ROZPOCZĘCIA SUBSKRYPCJI UTRZYMANIA',
-                            admin: { description: 'Wysyła maila z linkiem do podpięcia karty na poczet abonamentu za utrzymanie.' }
+                            admin: { hidden: true }
+                        },
+                        {
+                            name: 'buttonActions',
+                            type: 'ui',
+                            admin: {
+                                components: {
+                                    Field: '/src/components/QuoteActions.tsx#QuoteActions',
+                                }
+                            }
                         }
                     ]
                 }
@@ -163,6 +181,7 @@ export const Quotes: CollectionConfig = {
                         if (brief && brief.clientEmail) {
                             console.log('Wysyłam link do subskrypcji dla:', brief.clientEmail);
                             // TODO: Add Resend trigger for subscription link
+                            data.subscriptionSentAt = new Date().toISOString();
                         }
                     }
                     data.actionSendSubscription = false;
