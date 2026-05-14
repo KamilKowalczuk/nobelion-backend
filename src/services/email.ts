@@ -49,3 +49,39 @@ export const sendQuoteEmail = async ({
         console.error('[Email] Błąd wysyłania wyceny:', error);
     }
 };
+
+export const sendInternalChangeRequestEmail = async ({ 
+    company, 
+    message 
+}: { 
+    company: string, 
+    message: string 
+}) => {
+    if (!process.env.RESEND_API_KEY) {
+        console.warn('Brak klucza RESEND_API_KEY. Pominięto wysyłkę emaila o prośbie zmiany.');
+        return;
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    try {
+        await resend.emails.send({
+            from: process.env.EMAIL_FROM || 'kontakt@nobelion.pl',
+            to: process.env.EMAIL_TO || 'kontakt@nobelion.pl', // Wewnętrzny adres powiadomień
+            subject: `[Poprawki do wyceny] ${company}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                    <h2 style="color: #050505;">Klient prosi o zmianę w wycenie</h2>
+                    <p>Klient <strong>${company}</strong> wysłał prośbę o poprawki do wyceny.</p>
+                    <div style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #C5A059; margin: 20px 0; white-space: pre-wrap;">
+                        ${message}
+                    </div>
+                    <p>Zaloguj się do panelu Payload CMS, aby zaktualizować wycenę i wysłać ją ponownie.</p>
+                </div>
+            `
+        });
+        console.log(`[Email] Wysłano powiadomienie wewnętrzne o poprawkach od ${company}`);
+    } catch (error) {
+        console.error('[Email] Błąd wysyłania powiadomienia o poprawkach:', error);
+    }
+};

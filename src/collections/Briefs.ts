@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload';
-import { sendQuoteEmail } from '../services/email';
+import { sendQuoteEmail, sendInternalChangeRequestEmail } from '../services/email';
 import { generateToken, createStripeSession } from '../services/briefs';
 
 export const Briefs: CollectionConfig = {
@@ -83,6 +83,43 @@ export const Briefs: CollectionConfig = {
             }
         },
         {
+            name: 'projectPlan',
+            type: 'richText',
+            label: 'Plan prac i Technologie',
+            admin: {
+                description: 'Opisz w jaki sposób zostanie zrealizowany projekt, użyte technologie i etapy.'
+            }
+        },
+        {
+            name: 'monthlyMaintenancePrice',
+            type: 'number',
+            label: 'Miesięczny koszt utrzymania (PLN netto)',
+            admin: {
+                description: 'Podaj kwotę jeśli projekt obejmuje opcjonalne utrzymanie.',
+                position: 'sidebar'
+            }
+        },
+        {
+            name: 'maintenanceDescription',
+            type: 'textarea',
+            label: 'Opis utrzymania',
+            admin: {
+                description: 'Co wchodzi w skład utrzymania miesięcznego? (np. 10 roboczogodzin, SLA 24h, monitoring).'
+            }
+        },
+        {
+            name: 'changeRequests',
+            type: 'array',
+            label: 'Prośby o poprawki od klienta',
+            admin: {
+                readOnly: true,
+            },
+            fields: [
+                { name: 'message', type: 'textarea', label: 'Wiadomość od klienta' },
+                { name: 'date', type: 'date', label: 'Data prośby' }
+            ]
+        },
+        {
             name: 'triggerQuoteEmail',
             type: 'checkbox',
             label: 'Wyślij e-mail z wyceną i linkiem do płatności',
@@ -115,6 +152,7 @@ export const Briefs: CollectionConfig = {
                 { label: 'Nowy', value: 'new' },
                 { label: 'Skontaktowany', value: 'contacted' },
                 { label: 'Wyceniony', value: 'quoted' },
+                { label: 'Oczekuje na poprawki klienta', value: 'change_requested' },
                 { label: 'Wygrany', value: 'won' },
                 { label: 'Przegrany', value: 'lost' }
             ]
@@ -179,8 +217,55 @@ export const Briefs: CollectionConfig = {
                     company: brief.company,
                     problemDescription: brief.problemDescription,
                     proposedPrice: brief.proposedPrice,
-                    quoteToken: brief.quoteToken
+                    quoteToken: brief.quoteToken,
+                    projectPlan: brief.projectPlan,
+                    monthlyMaintenancePrice: brief.monthlyMaintenancePrice,
+                    maintenanceDescription: brief.maintenanceDescription
                 });
+            }
+        },
+        {
+            path: '/request-change/:token',
+            method: 'post',
+            handler: async (req) => {
+                const token = req.routeParams?.token;
+                if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
+
+                const body = await req.json();
+                if (!body.message) return Response.json({ error: 'Brak wiadomości' }, { status: 400 });
+
+                const briefs = await req.payload.find({
+                    collection: 'briefs',
+                    where: { quoteToken: { equals: token } },
+                    limit: 1
+                });
+
+                if (briefs.docs.length === 0) {
+                    return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
+                }
+
+                const brief = briefs.docs[0];
+                const existingRequests = brief.changeRequests || [];
+
+                await req.payload.update({
+                    collection: 'briefs',
+                    id: brief.id,
+                    data: {
+                        status: 'change_requested',
+                        changeRequests: [
+                            ...existingRequests,
+                            {
+                                message: body.message,
+                                date: new Date().toISOString()
+                            }
+                        ]
+                    }
+                });
+
+                // Wysłanie powiadomienia e-mail
+                await sendInternalChangeRequestEmail({ company: brief.company, message: body.message });
+
+                return Response.json({ success: true });
             }
         },
         {
@@ -209,10 +294,10 @@ export const Briefs: CollectionConfig = {
                     return Response.json({ error: 'Brak kwoty wyceny' }, { status: 400 });
                 }
 
-                const amountToCharge = is50Percent ? Math.round(brief.proposedPrice / 2) : brief.proposedPrice;
+                const amountToCharge = is50Percent ? Math.round(brief.proposedPrice / 2) : Math.round(brief.proposedPrice * 0.9);
                 const description = is50Percent 
                     ? `I Rata (50%) - Wycena projektu dla ${brief.company}` 
-                    : `Opłata całościowa - Wycena projektu dla ${brief.company}`;
+                    : `Opłata całościowa z rabatem 10% - Wycena projektu dla ${brief.company}`;
 
                 try {
                     const session = await createStripeSession({

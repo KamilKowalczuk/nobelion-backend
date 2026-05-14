@@ -182,6 +182,39 @@ export interface Brief {
   budget?: string | null;
   proposedPrice?: number | null;
   /**
+   * Opisz w jaki sposób zostanie zrealizowany projekt, użyte technologie i etapy.
+   */
+  projectPlan?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Podaj kwotę jeśli projekt obejmuje opcjonalne utrzymanie.
+   */
+  monthlyMaintenancePrice?: number | null;
+  /**
+   * Co wchodzi w skład utrzymania miesięcznego? (np. 10 roboczogodzin, SLA 24h, monitoring).
+   */
+  maintenanceDescription?: string | null;
+  changeRequests?:
+    | {
+        message?: string | null;
+        date?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
    * Po zaznaczeniu i zapisaniu, klient otrzyma email. Checkbox zostanie automatycznie odznaczony po wysyłce.
    */
   triggerQuoteEmail?: boolean | null;
@@ -189,7 +222,7 @@ export interface Brief {
   quoteToken?: string | null;
   agreedPrivacy: boolean;
   agreedTerms: boolean;
-  status?: ('new' | 'contacted' | 'quoted' | 'won' | 'lost') | null;
+  status?: ('new' | 'contacted' | 'quoted' | 'change_requested' | 'won' | 'lost') | null;
   source?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -359,6 +392,16 @@ export interface BriefsSelect<T extends boolean = true> {
   scope?: T;
   budget?: T;
   proposedPrice?: T;
+  projectPlan?: T;
+  monthlyMaintenancePrice?: T;
+  maintenanceDescription?: T;
+  changeRequests?:
+    | T
+    | {
+        message?: T;
+        date?: T;
+        id?: T;
+      };
   triggerQuoteEmail?: T;
   quoteSentAt?: T;
   quoteToken?: T;

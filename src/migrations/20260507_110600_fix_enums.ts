@@ -50,6 +50,9 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
         IF NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'enum_briefs_status' AND e.enumlabel = 'lost') THEN
           EXECUTE 'ALTER TYPE "enum_briefs_status" ADD VALUE ''lost''';
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'enum_briefs_status' AND e.enumlabel = 'change_requested') THEN
+          EXECUTE 'ALTER TYPE "enum_briefs_status" ADD VALUE ''change_requested''';
+        END IF;
       END IF;
     END $$;
   `)
