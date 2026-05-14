@@ -15,7 +15,6 @@ import { Briefs } from './src/collections/Briefs';
 import { Orders } from './src/collections/Orders';
 import { Users } from './src/collections/Users';
 import { Quotes } from './src/collections/Quotes';
-import { importMap } from './app/(payload)/admin/importMap';
 
 export default buildConfig({
     editor: lexicalEditor({
@@ -109,7 +108,6 @@ export default buildConfig({
         push: false
     }),
     admin: {
-        user: 'users',
-        importMap,
+        user: 'users'
     }
 });
