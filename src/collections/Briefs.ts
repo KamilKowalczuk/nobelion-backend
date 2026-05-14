@@ -84,10 +84,10 @@ export const Briefs: CollectionConfig = {
         },
         {
             name: 'projectPlan',
-            type: 'richText',
+            type: 'textarea',
             label: 'Plan prac i Technologie',
             admin: {
-                description: 'Opisz w jaki sposób zostanie zrealizowany projekt, użyte technologie i etapy.'
+                description: 'Opisz w jaki sposób zostanie zrealizowany projekt, użyte technologie i etapy. Każdy akapit = osobna linia.'
             }
         },
         {
