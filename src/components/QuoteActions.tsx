@@ -29,13 +29,10 @@ export const QuoteActions: React.FC = () => {
       display: 'flex', 
       flexDirection: 'column', 
       gap: '12px', 
-      padding: '20px', 
-      background: '#f3f3f3', 
-      borderRadius: '8px',
-      border: '1px solid #ddd',
+      padding: '0', 
       marginTop: '20px'
     }}>
-      <h4 style={{ margin: 0, fontSize: '14px', color: '#666', textTransform: 'uppercase' }}>Akcje Poziomu 5</h4>
+      <h4 style={{ margin: 0, fontSize: '12px', color: '#666', textTransform: 'uppercase' }}>Akcje</h4>
       <div style={{ display: 'flex', gap: '10px' }}>
         <Button 
           type="button" 
@@ -55,9 +52,6 @@ export const QuoteActions: React.FC = () => {
           WYŚLIJ LINK DO SUBSKRYPCJI
         </Button>
       </div>
-      <p style={{ margin: 0, fontSize: '12px', color: '#999' }}>
-        Kliknięcie przycisku ustawi odpowiednią flagę i automatycznie zapisze dokument, co wywoła wysyłkę e-mail.
-      </p>
     </div>
   )
 }

@@ -7,11 +7,15 @@ import {
     ParagraphFeature,
     lexicalEditor,
     UnderlineFeature,
+    HeadingFeature,
+    OrderedListFeature,
+    UnorderedListFeature,
 } from '@payloadcms/richtext-lexical';
 import { Briefs } from './src/collections/Briefs';
 import { Orders } from './src/collections/Orders';
 import { Users } from './src/collections/Users';
 import { Quotes } from './src/collections/Quotes';
+import { importMap } from './app/(payload)/admin/importMap';
 
 export default buildConfig({
     editor: lexicalEditor({
@@ -22,14 +26,14 @@ export default buildConfig({
             ItalicFeature(),
             UnderlineFeature(),
             LinkFeature({}),
+            HeadingFeature({}),
+            OrderedListFeature(),
+            UnorderedListFeature(),
         ],
     }),
     onInit: async (payload) => {
         try {
-            // Importujemy sql dynamicznie, aby nie trafił do bundle'a przeglądarkowego
             const { sql } = await import('@payloadcms/db-postgres');
-            
-            // Używamy surowego adaptera do wykonania SQL (Self-Healing)
             await (payload.db as any).drizzle.execute(sql`
                 DO $$ BEGIN
                     CREATE TYPE "public"."enum_quotes_status" AS ENUM('draft', 'sent', 'accepted', 'rejected');
@@ -105,6 +109,7 @@ export default buildConfig({
         push: false
     }),
     admin: {
-        user: 'users'
+        user: 'users',
+        importMap,
     }
 });
