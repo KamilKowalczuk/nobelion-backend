@@ -7,6 +7,8 @@ import * as migration_20260514_094500_fix_quote_enums from './20260514_094500_fi
 import * as migration_20260514_100900_add_quote_columns from './20260514_100900_add_quote_columns';
 import * as migration_20260514_104400_project_plan_to_textarea from './20260514_104400_project_plan_to_textarea';
 
+import * as migration_20260514_120000_add_quotes_tables from './20260514_120000_add_quotes_tables';
+
 export const migrations = [
   {
     up: migration_20260505_112538.up,
@@ -47,5 +49,10 @@ export const migrations = [
     up: migration_20260514_104400_project_plan_to_textarea.up,
     down: migration_20260514_104400_project_plan_to_textarea.down,
     name: '20260514_104400_project_plan_to_textarea'
+  },
+  {
+    up: migration_20260514_120000_add_quotes_tables.up,
+    down: migration_20260514_120000_add_quotes_tables.down,
+    name: '20260514_120000_add_quotes_tables'
   },
 ];

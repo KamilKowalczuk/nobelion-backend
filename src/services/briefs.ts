@@ -7,6 +7,6 @@ export const generateToken = () => {
     return randomBytes(16).toString('hex');
 };
 
-export const createStripeSession = async (params: Stripe.Checkout.SessionCreateParams) => {
+export const createStripeSession = async (params: any) => {
     return await stripe.checkout.sessions.create(params);
 };

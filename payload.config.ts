@@ -16,7 +16,7 @@ export default buildConfig({
         pool: {
             connectionString: process.env.DATABASE_URI
         },
-        push: true
+        push: false
     }),
     admin: {
         user: 'users'
