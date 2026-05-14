@@ -4,6 +4,7 @@ import * as migration_20260507_065700_sync_brief_fields from './20260507_065700_
 import * as migration_20260507_094800_users_apikey_and_briefs_rename from './20260507_094800_users_apikey_and_briefs_rename';
 import * as migration_20260507_110600_fix_enums from './20260507_110600_fix_enums';
 import * as migration_20260514_094500_fix_quote_enums from './20260514_094500_fix_quote_enums';
+import * as migration_20260514_100900_add_quote_columns from './20260514_100900_add_quote_columns';
 
 export const migrations = [
   {
@@ -35,5 +36,10 @@ export const migrations = [
     up: migration_20260514_094500_fix_quote_enums.up,
     down: migration_20260514_094500_fix_quote_enums.down,
     name: '20260514_094500_fix_quote_enums'
+  },
+  {
+    up: migration_20260514_100900_add_quote_columns.up,
+    down: migration_20260514_100900_add_quote_columns.down,
+    name: '20260514_100900_add_quote_columns'
   },
 ];
