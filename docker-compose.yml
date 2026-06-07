@@ -32,6 +32,8 @@ services:
         condition: service_healthy
     expose:
       - "3001"
+    volumes:
+      - media_data:/app/media
     networks:
       - nobelion_net
       - debian_default
@@ -39,6 +41,7 @@ services:
 
 volumes:
   postgres_data: null
+  media_data: null
 
 networks:
   nobelion_net: null
