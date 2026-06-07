@@ -56,6 +56,20 @@ export default buildConfig({
 
                 CREATE INDEX IF NOT EXISTS "briefs_rels_parent_idx" ON "briefs_rels" ("parent_id");
                 CREATE INDEX IF NOT EXISTS "briefs_rels_media_idx" ON "briefs_rels" ("media_id");
+
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'payload_locked_documents_rels') THEN
+                        ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "media_id" integer;
+                        CREATE INDEX IF NOT EXISTS "payload_locked_documents_rels_media_idx" ON "payload_locked_documents_rels" ("media_id");
+                    END IF;
+                END $$;
+
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'payload_preferences_rels') THEN
+                        ALTER TABLE "payload_preferences_rels" ADD COLUMN IF NOT EXISTS "media_id" integer;
+                        CREATE INDEX IF NOT EXISTS "payload_preferences_rels_media_idx" ON "payload_preferences_rels" ("media_id");
+                    END IF;
+                END $$;
             `);
             await (payload.db as any).drizzle.execute(sql`
                 DO $$ BEGIN
@@ -132,6 +146,20 @@ export default buildConfig({
                 DO $$ BEGIN
                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'media') THEN
                         ALTER TABLE "briefs_rels" ADD CONSTRAINT "briefs_rels_media_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE SET NULL;
+                    END IF;
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'media')
+                        AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'payload_locked_documents_rels') THEN
+                        ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_media_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE CASCADE;
+                    END IF;
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'media')
+                        AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'payload_preferences_rels') THEN
+                        ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_media_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE CASCADE;
                     END IF;
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
             `);
