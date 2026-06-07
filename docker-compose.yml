@@ -18,7 +18,7 @@ services:
       - nobelion_net
     restart: unless-stopped
 
-  payload:
+  nobelion_backend:
     build:
       context: .
     container_name: nobelion_backend
