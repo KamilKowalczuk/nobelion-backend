@@ -41,6 +41,13 @@ export const Briefs: CollectionConfig = {
         { name: 'nip', type: 'text', label: 'NIP' },
         // --- Krok 3: Problem ---
         { name: 'problemDescription', type: 'textarea', label: 'Opis problemu', required: true },
+        {
+            name: 'attachments',
+            type: 'relationship',
+            label: 'Załączniki',
+            relationTo: 'media' as any,
+            hasMany: true,
+        },
         // --- Krok 4: Skala ---
         { name: 'hoursWeek', type: 'number', label: 'Godziny tygodniowo' },
         { name: 'peopleInvolved', type: 'text', label: 'Ile osób zaangażowanych' },
