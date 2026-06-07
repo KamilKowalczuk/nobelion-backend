@@ -85,6 +85,17 @@ export default buildConfig({
                 CREATE INDEX IF NOT EXISTS "quotes_brief_idx" ON "quotes" ("brief_id");
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_sent_at" timestamp(3) with time zone;
 
+                CREATE TABLE IF NOT EXISTS "briefs_rels" (
+                    "id" serial PRIMARY KEY,
+                    "order" integer,
+                    "parent_id" integer NOT NULL,
+                    "path" varchar NOT NULL,
+                    "media_id" integer
+                );
+
+                CREATE INDEX IF NOT EXISTS "briefs_rels_parent_idx" ON "briefs_rels" ("parent_id");
+                CREATE INDEX IF NOT EXISTS "briefs_rels_media_idx" ON "briefs_rels" ("media_id");
+
                 DO $$ BEGIN
                     ALTER TABLE "quotes" ADD CONSTRAINT "quotes_brief_id_briefs_id_fk" FOREIGN KEY ("brief_id") REFERENCES "public"."briefs"("id") ON DELETE SET NULL;
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
@@ -92,8 +103,12 @@ export default buildConfig({
                 DO $$ BEGIN
                     ALTER TABLE "quotes" ADD CONSTRAINT "quotes_order_id_id_orders_id_fk" FOREIGN KEY ("order_id_id") REFERENCES "public"."orders"("id") ON DELETE SET NULL;
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                DO $$ BEGIN
+                    ALTER TABLE "briefs_rels" ADD CONSTRAINT "briefs_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."briefs"("id") ON DELETE CASCADE;
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
             `);
-            console.log('[Nobelion CMS] Baza danych Quotes zweryfikowana pomyślnie.');
+            console.log('[Nobelion CMS] Baza danych Quotes + relacje Briefs zweryfikowane pomyślnie.');
         } catch (err) {
             console.error('[Nobelion CMS] Błąd podczas auto-naprawy bazy danych:', err);
         }

@@ -50,6 +50,16 @@ export const Briefs: CollectionConfig = {
         },
         // --- Krok 4: Skala ---
         { name: 'hoursWeek', type: 'number', label: 'Godziny tygodniowo' },
+        {
+            name: 'laborRate',
+            type: 'select',
+            label: 'Stawka roboczogodziny',
+            options: [
+                { label: 'Niska', value: 'low' },
+                { label: 'Średnia', value: 'mid' },
+                { label: 'Wysoka', value: 'high' }
+            ]
+        },
         { name: 'peopleInvolved', type: 'text', label: 'Ile osób zaangażowanych' },
         { name: 'growsWithScale', type: 'text', label: 'Czy problem rośnie ze skalą?' },
         // --- Krok 5: Co próbowaliście ---
