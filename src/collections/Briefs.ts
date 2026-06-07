@@ -61,10 +61,10 @@ export const Briefs: CollectionConfig = {
             type: 'select',
             label: 'Pilność',
             options: [
-                { label: 'Wczoraj, palące', value: 'palace' },
-                { label: 'W tym miesiącu', value: 'miesiac' },
-                { label: 'W kwartale', value: 'kwartal' },
-                { label: 'Rozważam, brak deadline', value: 'rozwazam' }
+                { label: 'Niska', value: 'low' },
+                { label: 'Średnia', value: 'medium' },
+                { label: 'Wysoka', value: 'high' },
+                { label: 'Pilna', value: 'urgent' }
             ]
         },
         {
