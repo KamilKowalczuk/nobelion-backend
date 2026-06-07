@@ -36,6 +36,38 @@ export default buildConfig({
             const { sql } = await import('@payloadcms/db-postgres');
             await (payload.db as any).drizzle.execute(sql`
                 DO $$ BEGIN
+                    CREATE TYPE "public"."enum_briefs_labor_rate" AS ENUM('low', 'mid', 'high');
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'briefs') THEN
+                        ALTER TABLE "briefs" ADD COLUMN IF NOT EXISTS "labor_rate" "public"."enum_briefs_labor_rate" DEFAULT 'mid';
+                        UPDATE "briefs" SET "labor_rate" = 'mid' WHERE "labor_rate" IS NULL;
+                    END IF;
+                END $$;
+
+                CREATE TABLE IF NOT EXISTS "briefs_rels" (
+                    "id" serial PRIMARY KEY,
+                    "order" integer,
+                    "parent_id" integer NOT NULL,
+                    "path" varchar NOT NULL,
+                    "media_id" integer
+                );
+
+                CREATE INDEX IF NOT EXISTS "briefs_rels_parent_idx" ON "briefs_rels" ("parent_id");
+                CREATE INDEX IF NOT EXISTS "briefs_rels_media_idx" ON "briefs_rels" ("media_id");
+            `);
+            await (payload.db as any).drizzle.execute(sql`
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'enum_briefs_urgency') THEN
+                        ALTER TYPE "public"."enum_briefs_urgency" ADD VALUE IF NOT EXISTS 'low';
+                        ALTER TYPE "public"."enum_briefs_urgency" ADD VALUE IF NOT EXISTS 'medium';
+                        ALTER TYPE "public"."enum_briefs_urgency" ADD VALUE IF NOT EXISTS 'high';
+                        ALTER TYPE "public"."enum_briefs_urgency" ADD VALUE IF NOT EXISTS 'urgent';
+                    END IF;
+                END $$;
+
+                DO $$ BEGIN
                     CREATE TYPE "public"."enum_quotes_status" AS ENUM('draft', 'sent', 'accepted', 'rejected');
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
                 
@@ -85,17 +117,6 @@ export default buildConfig({
                 CREATE INDEX IF NOT EXISTS "quotes_brief_idx" ON "quotes" ("brief_id");
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_sent_at" timestamp(3) with time zone;
 
-                CREATE TABLE IF NOT EXISTS "briefs_rels" (
-                    "id" serial PRIMARY KEY,
-                    "order" integer,
-                    "parent_id" integer NOT NULL,
-                    "path" varchar NOT NULL,
-                    "media_id" integer
-                );
-
-                CREATE INDEX IF NOT EXISTS "briefs_rels_parent_idx" ON "briefs_rels" ("parent_id");
-                CREATE INDEX IF NOT EXISTS "briefs_rels_media_idx" ON "briefs_rels" ("media_id");
-
                 DO $$ BEGIN
                     ALTER TABLE "quotes" ADD CONSTRAINT "quotes_brief_id_briefs_id_fk" FOREIGN KEY ("brief_id") REFERENCES "public"."briefs"("id") ON DELETE SET NULL;
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
@@ -107,8 +128,14 @@ export default buildConfig({
                 DO $$ BEGIN
                     ALTER TABLE "briefs_rels" ADD CONSTRAINT "briefs_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."briefs"("id") ON DELETE CASCADE;
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'media') THEN
+                        ALTER TABLE "briefs_rels" ADD CONSTRAINT "briefs_rels_media_fk" FOREIGN KEY ("media_id") REFERENCES "public"."media"("id") ON DELETE SET NULL;
+                    END IF;
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
             `);
-            console.log('[Nobelion CMS] Baza danych Quotes + relacje Briefs zweryfikowane pomyślnie.');
+            console.log('[Nobelion CMS] Baza danych Briefs + Quotes + relacje zweryfikowane pomyślnie.');
         } catch (err) {
             console.error('[Nobelion CMS] Błąd podczas auto-naprawy bazy danych:', err);
         }
