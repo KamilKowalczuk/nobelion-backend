@@ -46,6 +46,39 @@ export default buildConfig({
                     END IF;
                 END $$;
 
+                CREATE TABLE IF NOT EXISTS "media" (
+                    "id" serial PRIMARY KEY,
+                    "alt" varchar,
+                    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+                    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+                    "url" varchar,
+                    "thumbnail_u_r_l" varchar,
+                    "filename" varchar,
+                    "mime_type" varchar,
+                    "filesize" numeric,
+                    "width" numeric,
+                    "height" numeric,
+                    "focal_x" numeric,
+                    "focal_y" numeric
+                );
+
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "alt" varchar;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "url" varchar;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "thumbnail_u_r_l" varchar;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "filename" varchar;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "mime_type" varchar;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "filesize" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "width" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "height" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "focal_x" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "focal_y" numeric;
+
+                CREATE INDEX IF NOT EXISTS "media_filename_idx" ON "media" ("filename");
+                CREATE INDEX IF NOT EXISTS "media_created_at_idx" ON "media" ("created_at");
+                CREATE INDEX IF NOT EXISTS "media_updated_at_idx" ON "media" ("updated_at");
+
                 CREATE TABLE IF NOT EXISTS "briefs_rels" (
                     "id" serial PRIMARY KEY,
                     "order" integer,
