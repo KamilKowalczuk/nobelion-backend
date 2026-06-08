@@ -14,7 +14,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV HOSTNAME=0.0.0.0
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 && apk add --no-cache su-exec
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/tsconfig.json ./
@@ -22,6 +22,6 @@ COPY --from=builder /app/payload.config.ts ./
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-USER nextjs
+RUN mkdir -p /app/media && chown -R nextjs:nodejs /app/media
 EXPOSE 3001
-CMD ["sh", "-c", "npx payload migrate --yes && node server.js"]
+CMD ["sh", "-c", "mkdir -p /app/media && chown -R nextjs:nodejs /app/media && su-exec nextjs sh -c 'npx payload migrate --yes && node server.js'"]
