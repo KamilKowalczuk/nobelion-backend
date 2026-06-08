@@ -143,7 +143,7 @@ export const sendQuoteEmail = async ({
     const resend = getResend();
     const quoteUrl = `${getFrontendUrl()}/wycena/${quoteToken}`;
 
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
         from: `Nobelion <${getFrom()}>`,
         to,
         subject: `Wycena projektu dla ${companyName} — Nobelion`,
@@ -164,7 +164,12 @@ export const sendQuoteEmail = async ({
         }),
     });
 
-    console.log(`[Email] Wysłano wycenę do ${to}`);
+    if (error) {
+        console.error('[Email] BŁĄD Resend przy wysyłaniu wyceny:', JSON.stringify(error));
+        throw new Error(`Nie udało się wysłać emaila z wyceną: ${error.message || JSON.stringify(error)}`);
+    }
+
+    console.log(`[Email] Wysłano wycenę do ${to}, Resend id: ${data?.id}`);
 };
 
 export const sendInternalChangeRequestEmail = async ({
@@ -176,7 +181,7 @@ export const sendInternalChangeRequestEmail = async ({
 }) => {
     const resend = getResend();
 
-    await resend.emails.send({
+    const { data, error } = await resend.emails.send({
         from: `Nobelion <${getFrom()}>`,
         to: getInternal(),
         subject: `[Poprawki do wyceny] ${company}`,
@@ -192,5 +197,9 @@ export const sendInternalChangeRequestEmail = async ({
         }),
     });
 
-    console.log(`[Email] Wysłano powiadomienie wewnętrzne o poprawkach od ${company}`);
+    if (error) {
+        console.error('[Email] BŁĄD Resend (zmiana wyceny):', JSON.stringify(error));
+    } else {
+        console.log(`[Email] Powiadomienie o poprawkach wysłane, Resend id: ${data?.id}`);
+    }
 };
