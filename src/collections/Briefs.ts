@@ -3,8 +3,8 @@ import type { CollectionConfig } from 'payload';
 export const Briefs: CollectionConfig = {
     slug: 'briefs',
     admin: {
-        useAsTitle: 'company',
-        defaultColumns: ['company', 'clientEmail', 'status', 'budget', 'urgency', 'createdAt']
+        useAsTitle: 'clientLabel',
+        defaultColumns: ['clientLabel', 'status', 'budget', 'urgency', 'createdAt']
     },
     labels: {
         singular: 'Brief',
@@ -16,7 +16,31 @@ export const Briefs: CollectionConfig = {
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
     },
+    hooks: {
+        beforeChange: [
+            ({ data }) => {
+                const parts = [data.company, data.clientName, data.clientEmail].filter(Boolean);
+                data.clientLabel = parts.join(' · ');
+                return data;
+            }
+        ],
+        beforeRead: [
+            ({ doc }) => {
+                if (!doc.clientLabel) {
+                    const parts = [doc.company, doc.clientName, doc.clientEmail].filter(Boolean);
+                    doc.clientLabel = parts.join(' · ');
+                }
+                return doc;
+            }
+        ]
+    },
     fields: [
+        // Auto-generowany label dla dropdownów (firma · imię · email)
+        {
+            name: 'clientLabel',
+            type: 'text',
+            admin: { hidden: true, readOnly: true, disableBulkEdit: true },
+        },
         // --- Krok 1: Diagnoza ---
         {
             name: 'diagnosis',
@@ -89,7 +113,6 @@ export const Briefs: CollectionConfig = {
             ]
         },
         { name: 'budget', type: 'text', label: 'Budżet orientacyjny' },
-        // --- Pola Wyceny usunięte. Wszystkie wyceny tworzone są teraz w osobnej kolekcji 'Quotes'. ---
         { name: 'agreedPrivacy', type: 'checkbox', label: 'Zgoda na politykę prywatności', required: true },
         { name: 'agreedTerms', type: 'checkbox', label: 'Akceptacja regulaminu', required: true },
         {

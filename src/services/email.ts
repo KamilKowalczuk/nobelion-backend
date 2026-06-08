@@ -1,109 +1,196 @@
 import { Resend } from 'resend';
 
-export const sendQuoteEmail = async ({ 
-    to, 
-    companyName, 
-    quoteAmount, 
-    briefId 
-}: { 
-    to: string, 
-    companyName: string, 
-    quoteAmount: number, 
-    briefId: string 
-}) => {
-    if (!process.env.RESEND_API_KEY) {
-        console.warn('Brak klucza RESEND_API_KEY. Pominięto wysyłkę emaila.');
-        return;
-    }
-
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    // TODO: Zmienić domenę na produkcyjną po wdrożeniu
-    const baseUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:4321' : 'https://nobelion.pl';
-    const wycenaUrl = `${baseUrl}/wycena/${briefId}`;
-
-    try {
-        await resend.emails.send({
-            from: process.env.EMAIL_FROM || 'kontakt@nobelion.pl',
-            to,
-            subject: `Wycena projektu dla ${companyName} - Nobelion`,
-            html: `
-                <div style="background-color: #050505; color: #FFFFFF; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px 20px; line-height: 1.6;">
-                    <div style="max-width: 600px; margin: 0 auto; background-color: #121212; border: 1px solid rgba(255,255,255,0.1); padding: 40px;">
-                        <div style="text-align: center; margin-bottom: 40px;">
-                            <h1 style="color: #C5A059; font-weight: 300; letter-spacing: 4px; margin: 0; text-transform: uppercase; font-size: 24px;">Nobelion</h1>
-                        </div>
-                        
-                        <div style="display: inline-block; padding: 4px 12px; margin-bottom: 24px; border: 1px solid rgba(197, 160, 89, 0.3); color: #C5A059; font-size: 10px; text-transform: uppercase; letter-spacing: 2px;">
-                            Propozycja Wdrożenia
-                        </div>
-
-                        <h2 style="font-size: 24px; font-weight: 300; margin-top: 0; margin-bottom: 24px; color: #FFFFFF;">
-                            Wycena projektu dla <span style="color: #C5A059;">${companyName}</span>
-                        </h2>
-                        
-                        <p style="color: #9CA3AF; font-size: 16px; margin-bottom: 24px;">Zgodnie z naszymi wcześniejszymi ustaleniami, przygotowaliśmy dla Ciebie dedykowany plan inwestycji oraz szczegóły technologiczne Twojego rozwiązania.</p>
-                        
-                        <div style="background-color: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 24px; margin-bottom: 32px; text-align: center;">
-                            <div style="font-size: 12px; color: #C5A059; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Cena bazowa projektu netto</div>
-                            <div style="font-size: 28px; font-weight: 400; color: #FFFFFF;">${new Intl.NumberFormat('pl-PL').format(quoteAmount)} PLN</div>
-                        </div>
-                        
-                        <p style="color: #9CA3AF; font-size: 14px; margin-bottom: 32px;">Kliknij poniższy przycisk, aby zobaczyć pełny plan prac, zapoznać się ze specyfikacją technologiczną oraz poznać dostępne modele płatności (w tym opcję <strong>rabatu 10%</strong>).</p>
-                        
-                        <div style="text-align: center; margin-bottom: 40px;">
-                            <a href="${wycenaUrl}" style="display: inline-block; padding: 16px 32px; background-color: #C5A059; color: #050505; text-decoration: none; font-weight: bold; font-size: 14px; letter-spacing: 1px; text-transform: uppercase;">
-                                Zobacz pełną wycenę
-                            </a>
-                        </div>
-                        
-                        <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 40px 0;">
-                        
-                        <div style="text-align: center; color: #6B7280; font-size: 12px;">
-                            <p style="margin: 0 0 8px 0;">W razie pytań lub chęci modyfikacji wyceny, możesz użyć formularza na stronie z wyceną, lub po prostu odpowiedzieć na tę wiadomość.</p>
-                            <p style="margin: 0;"><a href="https://nobelion.pl" style="color: #C5A059; text-decoration: none;">nobelion.pl</a> • Studio Tworzenia Oprogramowania</p>
-                        </div>
-                    </div>
-                </div>
-            `
-        });
-        console.log(`[Email] Wysłano wycenę do ${to}`);
-    } catch (error) {
-        console.error('[Email] Błąd wysyłania wyceny:', error);
-    }
+type EmailSection = {
+    label: string;
+    value: string;
 };
 
-export const sendInternalChangeRequestEmail = async ({ 
-    company, 
-    message 
-}: { 
-    company: string, 
-    message: string 
-}) => {
+type BrandedEmailData = {
+    preheader: string;
+    eyebrow: string;
+    title: string;
+    intro: string;
+    sections?: EmailSection[];
+    cta?: {
+        label: string;
+        url: string;
+    };
+    note?: string;
+};
+
+function getResend(): Resend {
     if (!process.env.RESEND_API_KEY) {
-        console.warn('Brak klucza RESEND_API_KEY. Pominięto wysyłkę emaila o prośbie zmiany.');
-        return;
+        throw new Error('Brak klucza RESEND_API_KEY. Nie można wysłać emaila.');
     }
+    return new Resend(process.env.RESEND_API_KEY);
+}
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
+function getFrom(): string {
+    return process.env.EMAIL_FROM || 'kontakt@nobelion.pl';
+}
 
-    try {
-        await resend.emails.send({
-            from: process.env.EMAIL_FROM || 'kontakt@nobelion.pl',
-            to: process.env.EMAIL_TO || 'kontakt@nobelion.pl', // Wewnętrzny adres powiadomień
-            subject: `[Poprawki do wyceny] ${company}`,
-            html: `
-                <div style="background-color: #050505; color: #FFFFFF; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px 20px; line-height: 1.6;">
-                    <div style="max-width: 600px; margin: 0 auto; background-color: #121212; border: 1px solid rgba(255,255,255,0.1); padding: 40px;">
-                        <h2 style="color: #FFFFFF; font-weight: 300; margin-top: 0;">Klient prosi o zmianę w wycenie</h2>
-                        <p style="color: #9CA3AF;">Klient <strong style="color: #C5A059;">${company}</strong> wysłał prośbę o poprawki do swojej wyceny.</p>
-                        <div style="background-color: rgba(255,255,255,0.02); padding: 20px; border-left: 4px solid #C5A059; margin: 30px 0; white-space: pre-wrap; color: #E5E7EB; font-size: 14px;">${message}</div>
-                        <p style="color: #9CA3AF; font-size: 14px;">Zaloguj się do panelu Payload CMS, aby zmodyfikować brief, uzupełnić ceny i opisy, a następnie zaznaczyć "Wyślij e-mail z wyceną" aby wysłać klientowi poprawioną wersję.</p>
-                    </div>
-                </div>
-            `
-        });
-        console.log(`[Email] Wysłano powiadomienie wewnętrzne o poprawkach od ${company}`);
-    } catch (error) {
-        console.error('[Email] Błąd wysyłania powiadomienia o poprawkach:', error);
-    }
+function getInternal(): string {
+    return process.env.EMAIL_INTERNAL || process.env.EMAIL_TO || 'kontakt@nobelion.pl';
+}
+
+function getFrontendUrl(): string {
+    return (process.env.FRONTEND_URL || process.env.PUBLIC_SITE_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:4321' : 'https://nobelion.pl')).replace(/\/$/, '');
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function formatMoney(amount: number): string {
+    return new Intl.NumberFormat('pl-PL', {
+        style: 'currency',
+        currency: 'PLN',
+        maximumFractionDigits: 0,
+    }).format(amount || 0);
+}
+
+function renderBrandedEmail({ preheader, eyebrow, title, intro, sections = [], cta, note }: BrandedEmailData): string {
+    const sectionHtml = sections.map(section => `
+        <tr>
+            <td style="padding:18px 0;border-top:1px solid rgba(232,230,223,0.12);">
+                <div style="font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#C5A059;margin-bottom:8px;">${escapeHtml(section.label)}</div>
+                <div style="font-size:16px;line-height:1.65;color:#F7F4ED;">${escapeHtml(section.value).replace(/\n/g, '<br>')}</div>
+            </td>
+        </tr>
+    `).join('');
+
+    const ctaHtml = cta ? `
+        <tr>
+            <td align="center" style="padding:34px 0 10px;">
+                <a href="${escapeHtml(cta.url)}" style="display:inline-block;background:#C5A059;color:#080B10;text-decoration:none;font-family:Arial,sans-serif;font-weight:700;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;padding:17px 28px;border-radius:999px;box-shadow:0 18px 42px rgba(197,160,89,0.22);">${escapeHtml(cta.label)}</a>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:12px 0 0;text-align:center;font-size:12px;line-height:1.6;color:#9CA3AF;">
+                Jeśli przycisk nie działa, skopiuj adres:<br><span style="color:#C5A059;word-break:break-all;">${escapeHtml(cta.url)}</span>
+            </td>
+        </tr>
+    ` : '';
+
+    const noteHtml = note ? `
+        <tr>
+            <td style="padding:22px 0 0;font-size:14px;line-height:1.7;color:#B8B6AE;">${escapeHtml(note).replace(/\n/g, '<br>')}</td>
+        </tr>
+    ` : '';
+
+    return `<!doctype html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Nobelion</title>
+</head>
+<body style="margin:0;padding:0;background:#080B10;color:#F7F4ED;font-family:Arial,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">${escapeHtml(preheader)}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#080B10;background-image:linear-gradient(135deg,#080B10 0%,#101722 55%,#080B10 100%);padding:32px 14px;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;border:1px solid rgba(197,160,89,0.22);background:#101722;border-radius:28px;overflow:hidden;box-shadow:0 28px 90px rgba(0,0,0,0.42);">
+                    <tr>
+                        <td style="padding:34px 34px 20px;background:linear-gradient(135deg,rgba(197,160,89,0.16),rgba(255,255,255,0.02));border-bottom:1px solid rgba(232,230,223,0.08);">
+                            <div style="font-family:Georgia,'Times New Roman',serif;font-size:24px;letter-spacing:0.24em;color:#F7F4ED;text-transform:uppercase;">Nobelion</div>
+                            <div style="margin-top:22px;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#C5A059;">${escapeHtml(eyebrow)}</div>
+                            <h1 style="margin:14px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.16;font-weight:400;color:#F7F4ED;">${escapeHtml(title)}</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:30px 34px 36px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                <tr>
+                                    <td style="font-size:17px;line-height:1.75;color:#D8D5CB;">${escapeHtml(intro).replace(/\n/g, '<br>')}</td>
+                                </tr>
+                                ${sectionHtml}
+                                ${ctaHtml}
+                                ${noteHtml}
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:22px 34px 30px;border-top:1px solid rgba(232,230,223,0.08);font-size:12px;line-height:1.7;color:#838A96;text-align:center;">
+                            Nobelion Sp. z o.o. · Automatyzacje AI i systemy dla firm<br>
+                            <a href="https://nobelion.pl" style="color:#C5A059;text-decoration:none;">nobelion.pl</a> · <a href="mailto:kontakt@nobelion.pl" style="color:#C5A059;text-decoration:none;">kontakt@nobelion.pl</a>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+}
+
+export const sendQuoteEmail = async ({
+    to,
+    companyName,
+    quoteAmount,
+    quoteToken,
+}: {
+    to: string,
+    companyName: string,
+    quoteAmount: number,
+    quoteToken: string
+}) => {
+    const resend = getResend();
+    const quoteUrl = `${getFrontendUrl()}/wycena/${quoteToken}`;
+
+    await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to,
+        subject: `Wycena projektu dla ${companyName} — Nobelion`,
+        html: renderBrandedEmail({
+            preheader: `Przygotowaliśmy dedykowaną wycenę projektu dla ${companyName}.`,
+            eyebrow: 'Propozycja wdrożenia',
+            title: `Wycena dla ${companyName}`,
+            intro: 'Przygotowaliśmy dedykowany plan inwestycji, zakres prac oraz dostępne modele płatności. Na stronie wyceny możesz zaakceptować propozycję, wybrać wariant płatności albo poprosić o poprawki.',
+            sections: [
+                { label: 'Cena bazowa netto', value: formatMoney(quoteAmount) },
+                { label: 'Opcje na stronie', value: 'Płatność jednorazowa z rabatem 10% albo płatność etapowa 50% na start.' },
+            ],
+            cta: {
+                label: 'Zobacz pełną wycenę',
+                url: quoteUrl,
+            },
+            note: 'Link jest indywidualny dla tej wyceny. W razie pytań możesz odpowiedzieć bezpośrednio na tę wiadomość.',
+        }),
+    });
+
+    console.log(`[Email] Wysłano wycenę do ${to}`);
+};
+
+export const sendInternalChangeRequestEmail = async ({
+    company,
+    message,
+}: {
+    company: string,
+    message: string
+}) => {
+    const resend = getResend();
+
+    await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to: getInternal(),
+        subject: `[Poprawki do wyceny] ${company}`,
+        html: renderBrandedEmail({
+            preheader: `Klient ${company} poprosił o zmianę w wycenie.`,
+            eyebrow: 'Prośba o poprawki',
+            title: company,
+            intro: 'Klient wysłał prośbę o modyfikację zakresu lub warunków wyceny.',
+            sections: [
+                { label: 'Wiadomość klienta', value: message },
+                { label: 'Następny krok', value: 'Zaloguj się do panelu Payload, zaktualizuj wycenę i wyślij klientowi poprawioną wersję.' },
+            ],
+        }),
+    });
+
+    console.log(`[Email] Wysłano powiadomienie wewnętrzne o poprawkach od ${company}`);
 };

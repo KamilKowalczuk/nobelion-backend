@@ -1,16 +1,6 @@
 import { buildConfig } from 'payload';
 import { postgresAdapter } from '@payloadcms/db-postgres';
-import {
-    BoldFeature,
-    ItalicFeature,
-    LinkFeature,
-    ParagraphFeature,
-    lexicalEditor,
-    UnderlineFeature,
-    HeadingFeature,
-    OrderedListFeature,
-    UnorderedListFeature,
-} from '@payloadcms/richtext-lexical';
+import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import { Briefs } from './src/collections/Briefs';
 import { Orders } from './src/collections/Orders';
 import { Users } from './src/collections/Users';
@@ -19,17 +9,7 @@ import { Media } from './src/collections/Media';
 
 export default buildConfig({
     editor: lexicalEditor({
-        features: ({ defaultFeatures }) => [
-            ...defaultFeatures,
-            ParagraphFeature(),
-            BoldFeature(),
-            ItalicFeature(),
-            UnderlineFeature(),
-            LinkFeature({}),
-            HeadingFeature({}),
-            OrderedListFeature(),
-            UnorderedListFeature(),
-        ],
+        features: ({ defaultFeatures }) => [...defaultFeatures],
     }),
     onInit: async (payload) => {
         try {

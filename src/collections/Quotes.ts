@@ -1,142 +1,287 @@
 import type { CollectionConfig } from 'payload';
 import { sendQuoteEmail, sendInternalChangeRequestEmail } from '../services/email';
-import { createStripeSession } from '../services/briefs'; // TODO: przenieś to do osobnego pliku payments
+import { createStripeSession } from '../services/briefs';
 import crypto from 'crypto';
 
 export const Quotes: CollectionConfig = {
     slug: 'quotes',
     admin: {
         useAsTitle: 'title',
-        defaultColumns: ['title', 'brief', 'status', 'totalPrice', 'createdAt']
+        defaultColumns: ['title', 'brief', 'status', 'paymentStatus', 'totalPrice', 'createdAt'],
+        description: 'Wyceny wysyłane do klientów. Wybierz brief, uzupełnij bloki treści i kliknij "Wyślij wycenę".',
     },
     labels: {
         singular: 'Wycena',
         plural: 'Wyceny',
     },
     access: {
-        read: ({ req: { user } }) => true, // Zmienione by publicznie uderzać do endpointów GET, ew ograniczyć do endpointów niestandardowych
+        read: () => true,
         create: ({ req: { user } }) => !!user,
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
     },
     fields: [
+        // ─── Nagłówek ─────────────────────────────────────────────
         {
             name: 'title',
             type: 'text',
-            label: 'Tytuł wewnętrzny (np. Wycena dla Firmy X)',
+            label: 'Tytuł wewnętrzny',
             required: true,
+            admin: {
+                placeholder: 'np. Wycena dla Acme Sp. z o.o. – Automatyzacja',
+                description: 'Widoczny tylko w panelu. Nie trafia do klienta.',
+            }
         },
         {
             name: 'brief',
             type: 'relationship',
             relationTo: 'briefs',
-            label: 'Powiązany Brief',
+            label: 'Klient / Brief',
             required: true,
+            admin: {
+                description: 'Lista pokazuje: Firma · Imię · Email. Wpisz fragment, żeby filtrować.',
+            }
         },
         {
             name: 'status',
             type: 'select',
-            label: 'Status',
+            label: 'Status wyceny',
             defaultValue: 'draft',
+            admin: { width: '50%' },
             options: [
-                { label: 'Szkic', value: 'draft' },
-                { label: 'Wysłana do klienta', value: 'sent' },
-                { label: 'Zaakceptowana (Czeka na opłatę)', value: 'accepted' },
-                { label: 'Odrzucona / Do poprawek', value: 'rejected' }
+                { label: '📝 Szkic', value: 'draft' },
+                { label: '📤 Wysłana do klienta', value: 'sent' },
+                { label: '✅ Zaakceptowana', value: 'accepted' },
+                { label: '🔄 Do poprawek', value: 'rejected' }
             ]
         },
         {
             name: 'quoteToken',
             type: 'text',
-            label: 'Token wyceny (generowany automatycznie)',
-            admin: { readOnly: true }
+            label: 'Token (link klienta)',
+            admin: {
+                readOnly: true,
+                width: '50%',
+                description: 'Auto-generowany. Klient wchodzi przez /wycena/{token}',
+            }
         },
+
+        // ─── Zakładki ─────────────────────────────────────────────
         {
             type: 'tabs',
             tabs: [
+                // ── Treść wyceny ────────────────────────────────────
                 {
-                    label: 'Treść (Bloki)',
+                    label: '📄 Treść',
+                    description: 'Bloki budują treść wyceny widoczną dla klienta.',
                     fields: [
                         {
                             name: 'content',
                             type: 'blocks',
-                            label: 'Zawartość wyceny',
+                            label: 'Sekcje wyceny',
+                            admin: {
+                                description: 'Dodaj sekcje: Opis tekstowy, Etap prac lub Lista deliverables.',
+                                initCollapsed: false,
+                            },
                             blocks: [
+                                // ── Blok: Sekcja Tekstowa ──────────
                                 {
                                     slug: 'richText',
-                                    labels: { singular: 'Blok Tekstowy', plural: 'Bloki Tekstowe' },
-                                    fields: [{ name: 'text', type: 'richText', label: 'Tekst sformatowany' }]
+                                    labels: { singular: 'Sekcja Tekstowa', plural: 'Sekcje Tekstowe' },
+                                    admin: {},
+                                    fields: [
+                                        {
+                                            name: 'heading',
+                                            type: 'text',
+                                            label: 'Nagłówek sekcji',
+                                            admin: {
+                                                placeholder: 'np. Zakres prac, Technologia, Co zyskujesz',
+                                                description: 'Opcjonalny. Zostawi pusty jeśli sekcja jest wstępem.',
+                                            }
+                                        },
+                                        {
+                                            name: 'text',
+                                            type: 'textarea',
+                                            label: 'Treść',
+                                            required: true,
+                                            admin: {
+                                                placeholder: 'Opisz zakres prac, technologię lub korzyści...\n\nMożesz używać akapitów — każda pusta linia to nowy akapit.',
+                                                rows: 8,
+                                            }
+                                        }
+                                    ]
                                 },
+
+                                // ── Blok: Etap Prac ────────────────
                                 {
                                     slug: 'timeline',
-                                    labels: { singular: 'Etap prac (Oś czasu)', plural: 'Etapy prac' },
+                                    labels: { singular: 'Etap Prac', plural: 'Etapy Prac' },
+                                    admin: {},
                                     fields: [
-                                        { name: 'phaseName', type: 'text', label: 'Nazwa etapu (np. Miesiąc 1, Faza UX)', required: true },
-                                        { name: 'description', type: 'textarea', label: 'Krótki opis tego etapu' }
+                                        {
+                                            name: 'phaseName',
+                                            type: 'text',
+                                            label: 'Nazwa etapu',
+                                            required: true,
+                                            admin: { placeholder: 'np. Faza 1 – Analiza i Projekt UX' }
+                                        },
+                                        {
+                                            name: 'duration',
+                                            type: 'text',
+                                            label: 'Czas trwania',
+                                            admin: {
+                                                placeholder: 'np. 2 tygodnie',
+                                                width: '50%',
+                                            }
+                                        },
+                                        {
+                                            name: 'description',
+                                            type: 'textarea',
+                                            label: 'Opis etapu',
+                                            admin: {
+                                                placeholder: 'Co konkretnie dzieje się w tym etapie...',
+                                                rows: 4,
+                                            }
+                                        }
+                                    ]
+                                },
+
+                                // ── Blok: Lista Deliverables ───────
+                                {
+                                    slug: 'deliverables',
+                                    labels: { singular: 'Lista Deliverables', plural: 'Listy Deliverables' },
+                                    admin: {},
+                                    fields: [
+                                        {
+                                            name: 'title',
+                                            type: 'text',
+                                            label: 'Tytuł listy',
+                                            admin: { placeholder: 'np. Co wchodzi w zakres, Co NIE wchodzi w zakres' }
+                                        },
+                                        {
+                                            name: 'items',
+                                            type: 'array',
+                                            label: 'Pozycje',
+                                            admin: {
+                                                description: 'Dodaj co jest / nie jest w zakresie projektu.',
+                                                components: {}
+                                            },
+                                            fields: [
+                                                {
+                                                    name: 'item',
+                                                    type: 'text',
+                                                    label: 'Opis',
+                                                    required: true,
+                                                    admin: { placeholder: 'np. Integracja z systemem ERP' }
+                                                },
+                                                {
+                                                    name: 'included',
+                                                    type: 'select',
+                                                    label: 'Status',
+                                                    defaultValue: 'included',
+                                                    options: [
+                                                        { label: '✅ Included (w zakresie)', value: 'included' },
+                                                        { label: '❌ Not included (poza zakresem)', value: 'excluded' },
+                                                    ]
+                                                }
+                                            ]
+                                        }
                                     ]
                                 }
                             ]
                         }
                     ]
                 },
+
+                // ── Finanse ─────────────────────────────────────────
                 {
-                    label: 'Finanse i Opcje',
+                    label: '💰 Finanse',
                     fields: [
-                        { name: 'totalPrice', type: 'number', label: 'Cena całkowita projektu (netto PLN)', required: true },
-                        { name: 'maintenancePrice', type: 'number', label: 'Cena miesięcznego utrzymania (netto PLN)' },
-                        { name: 'maintenanceDescription', type: 'textarea', label: 'Opis zakresu utrzymania' },
-                        { name: 'clientSelectedMaintenance', type: 'checkbox', label: 'Klient zdecydował się na utrzymanie', defaultValue: false }
+                        {
+                            name: 'totalPrice',
+                            type: 'number',
+                            label: 'Cena całkowita netto (PLN)',
+                            required: true,
+                            admin: {
+                                width: '50%',
+                                description: 'Klient widzi rabat 10% przy płatności jednorazowej.',
+                                step: 100,
+                            }
+                        },
+                        {
+                            name: 'maintenancePrice',
+                            type: 'number',
+                            label: 'Cena utrzymania / miesiąc netto (PLN)',
+                            admin: {
+                                width: '50%',
+                                description: 'Zostaw puste jeśli nie oferujesz utrzymania.',
+                                step: 100,
+                            }
+                        },
+                        {
+                            name: 'maintenanceDescription',
+                            type: 'textarea',
+                            label: 'Opis pakietu utrzymania',
+                            admin: {
+                                placeholder: 'Co obejmuje abonament: np. hosting, poprawki, monitoring...',
+                                rows: 4,
+                                condition: (data) => !!data.maintenancePrice,
+                            }
+                        },
+                        {
+                            name: 'clientSelectedMaintenance',
+                            type: 'checkbox',
+                            label: 'Klient zdecydował się na utrzymanie',
+                            defaultValue: false,
+                            admin: { readOnly: true, description: 'Aktualizowane przez klienta na stronie wyceny.' }
+                        }
                     ]
                 },
+
+                // ── Status Płatności ────────────────────────────────
                 {
-                    label: 'Status Płatności',
+                    label: '💳 Płatność',
                     fields: [
                         {
                             name: 'paymentStatus',
                             type: 'select',
-                            label: 'Status płatności startowej',
+                            label: 'Status płatności',
                             defaultValue: 'unpaid',
                             options: [
-                                { label: 'Nieopłacone', value: 'unpaid' },
-                                { label: 'Opłacone (Raty 50%)', value: 'paid_half' },
-                                { label: 'Opłacone (Całość ze zniżką 10%)', value: 'paid_full' }
+                                { label: '⏳ Nieopłacone', value: 'unpaid' },
+                                { label: '💛 I Rata (50%) opłacona', value: 'paid_half' },
+                                { label: '💚 Całość opłacona (-10%)', value: 'paid_full' }
                             ],
-                            admin: { readOnly: true, description: 'Aktualizowane przez webhook Stripe.' }
+                            admin: { readOnly: true, description: 'Aktualizowane automatycznie przez webhook Stripe.' }
                         },
                         {
                             name: 'orderId',
                             type: 'relationship',
                             relationTo: 'orders',
-                            label: 'Powiązane Zamówienie (Płatność)',
-                            admin: { readOnly: true }
+                            label: 'Powiązane Zamówienie',
+                            admin: { readOnly: true, description: 'Wypełniane automatycznie po płatności.' }
                         }
                     ]
                 },
+
+                // ── Akcje ───────────────────────────────────────────
                 {
-                    label: 'Logi i Akcje',
+                    label: '⚡ Akcje',
                     fields: [
-                        { 
-                            name: 'quoteSentAt', 
-                            type: 'date', 
-                            label: 'Data ostatniej wysyłki wyceny', 
-                            admin: { readOnly: true, width: '50%' } 
-                        },
-                        { 
-                            name: 'subscriptionSentAt', 
-                            type: 'date', 
-                            label: 'Data wysyłki linku subskrypcji', 
-                            admin: { readOnly: true, width: '50%' } 
+                        {
+                            name: 'quoteSentAt',
+                            type: 'date',
+                            label: 'Wycena wysłana',
+                            admin: { readOnly: true, width: '50%' }
                         },
                         {
-                            name: 'actionSendQuote',
-                            type: 'checkbox',
-                            admin: { hidden: true }
+                            name: 'subscriptionSentAt',
+                            type: 'date',
+                            label: 'Link subskrypcji wysłany',
+                            admin: { readOnly: true, width: '50%' }
                         },
-                        {
-                            name: 'actionSendSubscription',
-                            type: 'checkbox',
-                            admin: { hidden: true }
-                        },
+                        { name: 'actionSendQuote', type: 'checkbox', admin: { hidden: true } },
+                        { name: 'actionSendSubscription', type: 'checkbox', admin: { hidden: true } },
                         {
                             name: 'buttonActions',
                             type: 'ui',
@@ -153,34 +298,40 @@ export const Quotes: CollectionConfig = {
     ],
     hooks: {
         beforeChange: [
-            async ({ data, req, operation }) => {
+            async ({ data, req }) => {
                 if (!data.quoteToken) {
                     data.quoteToken = crypto.randomBytes(16).toString('hex');
                 }
 
                 if (data.actionSendQuote === true) {
-                    if (data.brief) {
-                        const brief = await req.payload.findByID({ collection: 'briefs', id: data.brief });
-                        if (brief && brief.clientEmail) {
-                            await sendQuoteEmail({
-                                to: brief.clientEmail,
-                                companyName: brief.company,
-                                quoteAmount: data.totalPrice,
-                                briefId: data.quoteToken
-                            });
-                            data.quoteSentAt = new Date().toISOString();
-                            if (data.status === 'draft') data.status = 'sent';
-                        }
-                    }
+                    if (!data.brief) throw new Error('Nie można wysłać wyceny bez powiązanego briefu.');
+                    if (!data.totalPrice || data.totalPrice <= 0) throw new Error('Ustaw cenę przed wysłaniem wyceny.');
+
+                    const brief = await req.payload.findByID({
+                        collection: 'briefs',
+                        id: typeof data.brief === 'object' ? data.brief.id : data.brief
+                    });
+                    if (!brief?.clientEmail) throw new Error('Brief nie ma adresu email klienta.');
+
+                    await sendQuoteEmail({
+                        to: brief.clientEmail,
+                        companyName: brief.company,
+                        quoteAmount: data.totalPrice,
+                        quoteToken: data.quoteToken
+                    });
+                    data.quoteSentAt = new Date().toISOString();
+                    if (data.status === 'draft') data.status = 'sent';
                     data.actionSendQuote = false;
                 }
 
                 if (data.actionSendSubscription === true) {
                     if (data.brief) {
-                        const brief = await req.payload.findByID({ collection: 'briefs', id: data.brief });
-                        if (brief && brief.clientEmail) {
-                            console.log('Wysyłam link do subskrypcji dla:', brief.clientEmail);
-                            // TODO: Add Resend trigger for subscription link
+                        const brief = await req.payload.findByID({
+                            collection: 'briefs',
+                            id: typeof data.brief === 'object' ? data.brief.id : data.brief
+                        });
+                        if (brief?.clientEmail) {
+                            console.log('[Quotes] TODO: wysłać link subskrypcji do', brief.clientEmail);
                             data.subscriptionSentAt = new Date().toISOString();
                         }
                     }
@@ -203,14 +354,14 @@ export const Quotes: CollectionConfig = {
                     collection: 'quotes',
                     where: { quoteToken: { equals: token } },
                     limit: 1,
-                    depth: 1 // Fetch related Brief to get company name
+                    depth: 1
                 });
 
-                if (quotes.docs.length === 0) {
-                    return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
-                }
+                if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
 
                 const quote = quotes.docs[0];
+                if (quote.status === 'draft') return Response.json({ error: 'Wycena nie jest jeszcze dostępna' }, { status: 404 });
+
                 return Response.json(quote);
             }
         },
@@ -222,26 +373,20 @@ export const Quotes: CollectionConfig = {
                 if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
 
                 const body = await req.json();
-                const wantsMaintenance = Boolean(body.wantsMaintenance);
-
                 const quotes = await req.payload.find({
                     collection: 'quotes',
                     where: { quoteToken: { equals: token } },
                     limit: 1
                 });
+                if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
 
-                if (quotes.docs.length === 0) {
-                    return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
-                }
-
-                const quote = quotes.docs[0];
                 await req.payload.update({
                     collection: 'quotes',
-                    id: quote.id,
-                    data: { clientSelectedMaintenance: wantsMaintenance }
+                    id: quotes.docs[0].id,
+                    data: { clientSelectedMaintenance: Boolean(body.wantsMaintenance) }
                 });
 
-                return Response.json({ success: true, wantsMaintenance });
+                return Response.json({ success: true });
             }
         },
         {
@@ -260,19 +405,13 @@ export const Quotes: CollectionConfig = {
                     limit: 1,
                     depth: 1
                 });
-
                 if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
 
                 const quote = quotes.docs[0];
-                
-                await req.payload.update({
-                    collection: 'quotes',
-                    id: quote.id,
-                    data: { status: 'rejected' }
-                });
-                
+                await req.payload.update({ collection: 'quotes', id: quote.id, data: { status: 'rejected' } });
+
                 if (typeof quote.brief === 'object' && quote.brief !== null) {
-                    await sendInternalChangeRequestEmail({ company: quote.brief.company, message: body.message });
+                    await sendInternalChangeRequestEmail({ company: (quote.brief as any).company, message: body.message });
                 }
 
                 return Response.json({ success: true });
@@ -294,7 +433,6 @@ export const Quotes: CollectionConfig = {
                     limit: 1,
                     depth: 1
                 });
-
                 if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
 
                 const quote = quotes.docs[0];
@@ -303,27 +441,25 @@ export const Quotes: CollectionConfig = {
                     return Response.json({ error: 'Brak danych do wyceny' }, { status: 400 });
                 }
 
-                const amountToCharge = is50Percent ? Math.round(quote.totalPrice / 2) : Math.round(quote.totalPrice * 0.9);
-                const description = is50Percent 
-                    ? `I Rata (50%) - Wycena projektu dla ${brief.company}` 
-                    : `Opłata całościowa z rabatem 10% - Wycena projektu dla ${brief.company}`;
+                const amountToCharge = is50Percent
+                    ? Math.round(quote.totalPrice / 2)
+                    : Math.round(quote.totalPrice * 0.9);
+
+                const description = is50Percent
+                    ? `I Rata (50%) – ${brief.company}`
+                    : `Opłata całościowa (–10%) – ${brief.company}`;
 
                 try {
                     const session = await createStripeSession({
                         payment_method_types: ['card', 'blik', 'p24'],
-                        line_items: [
-                            {
-                                price_data: {
-                                    currency: 'pln',
-                                    product_data: {
-                                        name: `Wycena Projektu - ${brief.company}`,
-                                        description: description
-                                    },
-                                    unit_amount: Math.round(amountToCharge * 100) // grosze
-                                },
-                                quantity: 1,
+                        line_items: [{
+                            price_data: {
+                                currency: 'pln',
+                                product_data: { name: `Wycena Projektu – ${brief.company}`, description },
+                                unit_amount: Math.round(amountToCharge * 100)
                             },
-                        ],
+                            quantity: 1,
+                        }],
                         mode: 'payment',
                         success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
                         cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
@@ -332,7 +468,6 @@ export const Quotes: CollectionConfig = {
                             quoteId: String(quote.id),
                             briefId: String(brief.id),
                             paymentModel: is50Percent ? '50' : '100',
-                            isFirstTranche: is50Percent ? 'true' : 'false'
                         }
                     });
 
