@@ -74,6 +74,12 @@ export default buildConfig({
                 ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "height" numeric;
                 ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "focal_x" numeric;
                 ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "focal_y" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "sizes_thumbnail_url" varchar;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "sizes_thumbnail_width" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "sizes_thumbnail_height" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "sizes_thumbnail_mime_type" varchar;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "sizes_thumbnail_filesize" numeric;
+                ALTER TABLE "media" ADD COLUMN IF NOT EXISTS "sizes_thumbnail_filename" varchar;
 
                 CREATE INDEX IF NOT EXISTS "media_filename_idx" ON "media" ("filename");
                 CREATE INDEX IF NOT EXISTS "media_created_at_idx" ON "media" ("created_at");

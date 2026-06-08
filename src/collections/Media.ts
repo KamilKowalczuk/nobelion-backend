@@ -2,12 +2,16 @@ import type { CollectionConfig } from 'payload';
 
 export const Media: CollectionConfig = {
     slug: 'media',
+    admin: {
+        useAsTitle: 'filename',
+        defaultColumns: ['filename', 'mimeType', 'filesize', 'createdAt'],
+    },
     labels: {
         singular: 'Plik',
         plural: 'Pliki',
     },
     access: {
-        read: ({ req: { user } }) => !!user,
+        read: () => true,
         create: () => true,
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
@@ -15,6 +19,14 @@ export const Media: CollectionConfig = {
     upload: {
         staticDir: 'media',
         mimeTypes: ['image/*', 'application/pdf'],
+        imageSizes: [
+            {
+                name: 'thumbnail',
+                width: 320,
+                height: 240,
+                position: 'centre',
+            },
+        ],
     },
     fields: [
         {
