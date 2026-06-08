@@ -18,6 +18,8 @@ export const Media: CollectionConfig = {
     },
     upload: {
         staticDir: 'media',
+        adminThumbnail: 'thumbnail',
+        displayPreview: true,
         mimeTypes: ['image/*', 'application/pdf'],
         imageSizes: [
             {

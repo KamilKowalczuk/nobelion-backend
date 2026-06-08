@@ -43,10 +43,11 @@ export const Briefs: CollectionConfig = {
         { name: 'problemDescription', type: 'textarea', label: 'Opis problemu', required: true },
         {
             name: 'attachments',
-            type: 'relationship',
+            type: 'upload',
             label: 'Załączniki',
             relationTo: 'media' as any,
             hasMany: true,
+            displayPreview: true,
         },
         // --- Krok 4: Skala ---
         { name: 'hoursWeek', type: 'number', label: 'Godziny tygodniowo' },
