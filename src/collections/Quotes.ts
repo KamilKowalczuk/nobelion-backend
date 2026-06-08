@@ -90,67 +90,20 @@ export const Quotes: CollectionConfig = {
                             }
                         },
                         {
-                            name: 'timelinePhases',
-                            type: 'array',
+                            name: 'timelinePlan',
+                            type: 'richText',
                             label: 'Plan realizacji',
-                            labels: { singular: 'Etap', plural: 'Etapy' },
                             admin: {
-                                description: 'Dodaj kolejne etapy projektu. Każdy etap pojawi się na osi czasu w wycenie.',
-                                components: {},
-                            },
-                            fields: [
-                                {
-                                    name: 'phaseName',
-                                    type: 'text',
-                                    label: 'Nazwa etapu',
-                                    required: true,
-                                    admin: { placeholder: 'np. Faza 1 — Analiza i Projekt UX' }
-                                },
-                                {
-                                    name: 'duration',
-                                    type: 'text',
-                                    label: 'Czas trwania',
-                                    admin: { placeholder: 'np. 2 tygodnie', width: '50%' }
-                                },
-                                {
-                                    name: 'description',
-                                    type: 'textarea',
-                                    label: 'Opis etapu',
-                                    admin: {
-                                        rows: 3,
-                                        placeholder: 'Co konkretnie dzieje się w tym etapie...',
-                                    }
-                                }
-                            ]
+                                description: 'Opisz etapy projektu. Użyj nagłówków (H2/H3) dla nazw faz, list i tekstu.',
+                            }
                         },
                         {
-                            name: 'scopeItems',
-                            type: 'array',
+                            name: 'scopePlan',
+                            type: 'richText',
                             label: 'Zakres prac',
-                            labels: { singular: 'Pozycja', plural: 'Pozycje' },
                             admin: {
-                                description: 'Lista deliverables: co wchodzi w zakres, a co nie.',
-                                components: {},
-                            },
-                            fields: [
-                                {
-                                    name: 'item',
-                                    type: 'text',
-                                    label: 'Opis',
-                                    required: true,
-                                    admin: { placeholder: 'np. Integracja z systemem ERP klienta' }
-                                },
-                                {
-                                    name: 'included',
-                                    type: 'select',
-                                    label: 'Status',
-                                    defaultValue: 'included',
-                                    options: [
-                                        { label: '✅ W zakresie', value: 'included' },
-                                        { label: '❌ Poza zakresem', value: 'excluded' },
-                                    ]
-                                }
-                            ]
+                                description: 'Co wchodzi w zakres, a co nie. Użyj list punktowanych.',
+                            }
                         }
                     ]
                 },

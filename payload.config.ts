@@ -187,7 +187,8 @@ export default buildConfig({
             // ── Nowe tabele dla pól array w Quotes (bezpieczne, idempotentne) ──
             await (payload.db as any).drizzle.execute(sql`
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "intro" jsonb;
-                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "client_label_cached" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "timeline_plan" jsonb;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "scope_plan" jsonb;
 
                 CREATE TABLE IF NOT EXISTS "quotes_timeline_phases" (
                     "_order" integer NOT NULL,
