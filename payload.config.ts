@@ -183,6 +183,48 @@ export default buildConfig({
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
             `);
             console.log('[Nobelion CMS] Baza danych Briefs + Quotes + relacje zweryfikowane pomyślnie.');
+
+            // ── Nowe tabele dla pól array w Quotes (bezpieczne, idempotentne) ──
+            await (payload.db as any).drizzle.execute(sql`
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "intro" jsonb;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "client_label_cached" varchar;
+
+                CREATE TABLE IF NOT EXISTS "quotes_timeline_phases" (
+                    "_order" integer NOT NULL,
+                    "_parent_id" integer NOT NULL,
+                    "id" varchar PRIMARY KEY NOT NULL,
+                    "phase_name" varchar NOT NULL,
+                    "duration" varchar,
+                    "description" varchar
+                );
+                CREATE INDEX IF NOT EXISTS "quotes_timeline_phases_order_idx"
+                    ON "quotes_timeline_phases" USING btree ("_order");
+                CREATE INDEX IF NOT EXISTS "quotes_timeline_phases_parent_idx"
+                    ON "quotes_timeline_phases" USING btree ("_parent_id");
+                DO $$ BEGIN
+                    ALTER TABLE "quotes_timeline_phases" ADD CONSTRAINT "quotes_timeline_phases_parent_fk"
+                        FOREIGN KEY ("_parent_id") REFERENCES "public"."quotes"("id") ON DELETE CASCADE;
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                CREATE TABLE IF NOT EXISTS "quotes_scope_items" (
+                    "_order" integer NOT NULL,
+                    "_parent_id" integer NOT NULL,
+                    "id" varchar PRIMARY KEY NOT NULL,
+                    "item" varchar NOT NULL,
+                    "included" varchar DEFAULT 'included'
+                );
+                CREATE INDEX IF NOT EXISTS "quotes_scope_items_order_idx"
+                    ON "quotes_scope_items" USING btree ("_order");
+                CREATE INDEX IF NOT EXISTS "quotes_scope_items_parent_idx"
+                    ON "quotes_scope_items" USING btree ("_parent_id");
+                DO $$ BEGIN
+                    ALTER TABLE "quotes_scope_items" ADD CONSTRAINT "quotes_scope_items_parent_fk"
+                        FOREIGN KEY ("_parent_id") REFERENCES "public"."quotes"("id") ON DELETE CASCADE;
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                ALTER TABLE "briefs" ADD COLUMN IF NOT EXISTS "client_label" varchar;
+            `);
+            console.log('[Nobelion CMS] Nowe tabele dla wycen (timeline, scope) gotowe.');
         } catch (err) {
             console.error('[Nobelion CMS] Błąd podczas auto-naprawy bazy danych:', err);
         }

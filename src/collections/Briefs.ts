@@ -3,8 +3,10 @@ import type { CollectionConfig } from 'payload';
 export const Briefs: CollectionConfig = {
     slug: 'briefs',
     admin: {
-        useAsTitle: 'clientLabel',
-        defaultColumns: ['clientLabel', 'status', 'budget', 'urgency', 'createdAt']
+        useAsTitle: 'company',
+        defaultColumns: ['company', 'clientEmail', 'clientName', 'status', 'budget', 'createdAt'],
+        listSearchableFields: ['company', 'clientName', 'clientEmail'],
+        description: 'Wpisz nazwę firmy, imię lub email żeby filtrować w wyszukiwarce.',
     },
     labels: {
         singular: 'Brief',
@@ -16,31 +18,7 @@ export const Briefs: CollectionConfig = {
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
     },
-    hooks: {
-        beforeChange: [
-            ({ data }) => {
-                const parts = [data.company, data.clientName, data.clientEmail].filter(Boolean);
-                data.clientLabel = parts.join(' · ');
-                return data;
-            }
-        ],
-        beforeRead: [
-            ({ doc }) => {
-                if (!doc.clientLabel) {
-                    const parts = [doc.company, doc.clientName, doc.clientEmail].filter(Boolean);
-                    doc.clientLabel = parts.join(' · ');
-                }
-                return doc;
-            }
-        ]
-    },
     fields: [
-        // Auto-generowany label dla dropdownów (firma · imię · email)
-        {
-            name: 'clientLabel',
-            type: 'text',
-            admin: { hidden: true, readOnly: true, disableBulkEdit: true },
-        },
         // --- Krok 1: Diagnoza ---
         {
             name: 'diagnosis',

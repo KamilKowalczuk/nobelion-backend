@@ -8,7 +8,7 @@ export const Quotes: CollectionConfig = {
     admin: {
         useAsTitle: 'title',
         defaultColumns: ['title', 'brief', 'status', 'paymentStatus', 'totalPrice', 'createdAt'],
-        description: 'Wyceny wysyłane do klientów. Wybierz brief, uzupełnij bloki treści i kliknij "Wyślij wycenę".',
+        description: 'Wyceny dla klientów. Uzupełnij treść, ustaw cenę i kliknij "Wyślij wycenę do klienta".',
     },
     labels: {
         singular: 'Wycena',
@@ -21,171 +21,133 @@ export const Quotes: CollectionConfig = {
         delete: ({ req: { user } }) => !!user,
     },
     fields: [
-        // ─── Nagłówek ─────────────────────────────────────────────
+        // ── Nagłówek (widoczny zawsze nad zakładkami) ─────────────────
         {
             name: 'title',
             type: 'text',
             label: 'Tytuł wewnętrzny',
             required: true,
             admin: {
-                placeholder: 'np. Wycena dla Acme Sp. z o.o. – Automatyzacja',
-                description: 'Widoczny tylko w panelu. Nie trafia do klienta.',
+                placeholder: 'np. Wycena Automatyzacji — Acme Sp. z o.o.',
+                description: 'Tylko do użytku wewnętrznego. Klient tego nie widzi.',
             }
         },
         {
             name: 'brief',
             type: 'relationship',
             relationTo: 'briefs',
-            label: 'Klient / Brief',
+            label: 'Klient (Brief)',
             required: true,
             admin: {
-                description: 'Lista pokazuje: Firma · Imię · Email. Wpisz fragment, żeby filtrować.',
+                description: 'Wpisz nazwę firmy, imię lub email klienta żeby znaleźć odpowiedni brief.',
             }
         },
         {
-            name: 'status',
-            type: 'select',
-            label: 'Status wyceny',
-            defaultValue: 'draft',
-            admin: { width: '50%' },
-            options: [
-                { label: '📝 Szkic', value: 'draft' },
-                { label: '📤 Wysłana do klienta', value: 'sent' },
-                { label: '✅ Zaakceptowana', value: 'accepted' },
-                { label: '🔄 Do poprawek', value: 'rejected' }
+            type: 'row',
+            fields: [
+                {
+                    name: 'status',
+                    type: 'select',
+                    label: 'Status wyceny',
+                    defaultValue: 'draft',
+                    admin: { width: '50%' },
+                    options: [
+                        { label: '📝 Szkic', value: 'draft' },
+                        { label: '📤 Wysłana do klienta', value: 'sent' },
+                        { label: '✅ Zaakceptowana', value: 'accepted' },
+                        { label: '🔄 Do poprawek', value: 'rejected' }
+                    ]
+                },
+                {
+                    name: 'quoteToken',
+                    type: 'text',
+                    label: 'Link klienta (token)',
+                    admin: {
+                        readOnly: true,
+                        width: '50%',
+                        description: 'Auto-generowany. Klient wchodzi przez /wycena/{token}',
+                    }
+                }
             ]
         },
-        {
-            name: 'quoteToken',
-            type: 'text',
-            label: 'Token (link klienta)',
-            admin: {
-                readOnly: true,
-                width: '50%',
-                description: 'Auto-generowany. Klient wchodzi przez /wycena/{token}',
-            }
-        },
 
-        // ─── Zakładki ─────────────────────────────────────────────
+        // ── Zakładki ──────────────────────────────────────────────────
         {
             type: 'tabs',
             tabs: [
-                // ── Treść wyceny ────────────────────────────────────
+
+                // ── TREŚĆ ─────────────────────────────────────────────
                 {
-                    label: '📄 Treść',
-                    description: 'Bloki budują treść wyceny widoczną dla klienta.',
+                    label: '📄 Treść wyceny',
+                    description: 'Te sekcje składają się na treść wyceny widoczną przez klienta.',
                     fields: [
                         {
-                            name: 'content',
-                            type: 'blocks',
-                            label: 'Sekcje wyceny',
+                            name: 'intro',
+                            type: 'richText',
+                            label: 'Wstęp / Opis projektu',
                             admin: {
-                                description: 'Dodaj sekcje: Opis tekstowy, Etap prac lub Lista deliverables.',
-                                initCollapsed: false,
+                                description: 'Główna treść: kontekst, zakres, technologia. Obsługuje formatowanie (bold, listy, nagłówki).',
+                            }
+                        },
+                        {
+                            name: 'timelinePhases',
+                            type: 'array',
+                            label: 'Plan realizacji',
+                            labels: { singular: 'Etap', plural: 'Etapy' },
+                            admin: {
+                                description: 'Dodaj kolejne etapy projektu. Każdy etap pojawi się na osi czasu w wycenie.',
+                                components: {},
                             },
-                            blocks: [
-                                // ── Blok: Sekcja Tekstowa ──────────
+                            fields: [
                                 {
-                                    slug: 'richText',
-                                    labels: { singular: 'Sekcja Tekstowa', plural: 'Sekcje Tekstowe' },
-                                    admin: {},
-                                    fields: [
-                                        {
-                                            name: 'heading',
-                                            type: 'text',
-                                            label: 'Nagłówek sekcji',
-                                            admin: {
-                                                placeholder: 'np. Zakres prac, Technologia, Co zyskujesz',
-                                                description: 'Opcjonalny. Zostawi pusty jeśli sekcja jest wstępem.',
-                                            }
-                                        },
-                                        {
-                                            name: 'text',
-                                            type: 'textarea',
-                                            label: 'Treść',
-                                            required: true,
-                                            admin: {
-                                                placeholder: 'Opisz zakres prac, technologię lub korzyści...\n\nMożesz używać akapitów — każda pusta linia to nowy akapit.',
-                                                rows: 8,
-                                            }
-                                        }
-                                    ]
+                                    name: 'phaseName',
+                                    type: 'text',
+                                    label: 'Nazwa etapu',
+                                    required: true,
+                                    admin: { placeholder: 'np. Faza 1 — Analiza i Projekt UX' }
                                 },
-
-                                // ── Blok: Etap Prac ────────────────
                                 {
-                                    slug: 'timeline',
-                                    labels: { singular: 'Etap Prac', plural: 'Etapy Prac' },
-                                    admin: {},
-                                    fields: [
-                                        {
-                                            name: 'phaseName',
-                                            type: 'text',
-                                            label: 'Nazwa etapu',
-                                            required: true,
-                                            admin: { placeholder: 'np. Faza 1 – Analiza i Projekt UX' }
-                                        },
-                                        {
-                                            name: 'duration',
-                                            type: 'text',
-                                            label: 'Czas trwania',
-                                            admin: {
-                                                placeholder: 'np. 2 tygodnie',
-                                                width: '50%',
-                                            }
-                                        },
-                                        {
-                                            name: 'description',
-                                            type: 'textarea',
-                                            label: 'Opis etapu',
-                                            admin: {
-                                                placeholder: 'Co konkretnie dzieje się w tym etapie...',
-                                                rows: 4,
-                                            }
-                                        }
-                                    ]
+                                    name: 'duration',
+                                    type: 'text',
+                                    label: 'Czas trwania',
+                                    admin: { placeholder: 'np. 2 tygodnie', width: '50%' }
                                 },
-
-                                // ── Blok: Lista Deliverables ───────
                                 {
-                                    slug: 'deliverables',
-                                    labels: { singular: 'Lista Deliverables', plural: 'Listy Deliverables' },
-                                    admin: {},
-                                    fields: [
-                                        {
-                                            name: 'title',
-                                            type: 'text',
-                                            label: 'Tytuł listy',
-                                            admin: { placeholder: 'np. Co wchodzi w zakres, Co NIE wchodzi w zakres' }
-                                        },
-                                        {
-                                            name: 'items',
-                                            type: 'array',
-                                            label: 'Pozycje',
-                                            admin: {
-                                                description: 'Dodaj co jest / nie jest w zakresie projektu.',
-                                                components: {}
-                                            },
-                                            fields: [
-                                                {
-                                                    name: 'item',
-                                                    type: 'text',
-                                                    label: 'Opis',
-                                                    required: true,
-                                                    admin: { placeholder: 'np. Integracja z systemem ERP' }
-                                                },
-                                                {
-                                                    name: 'included',
-                                                    type: 'select',
-                                                    label: 'Status',
-                                                    defaultValue: 'included',
-                                                    options: [
-                                                        { label: '✅ Included (w zakresie)', value: 'included' },
-                                                        { label: '❌ Not included (poza zakresem)', value: 'excluded' },
-                                                    ]
-                                                }
-                                            ]
-                                        }
+                                    name: 'description',
+                                    type: 'textarea',
+                                    label: 'Opis etapu',
+                                    admin: {
+                                        rows: 3,
+                                        placeholder: 'Co konkretnie dzieje się w tym etapie...',
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            name: 'scopeItems',
+                            type: 'array',
+                            label: 'Zakres prac',
+                            labels: { singular: 'Pozycja', plural: 'Pozycje' },
+                            admin: {
+                                description: 'Lista deliverables: co wchodzi w zakres, a co nie.',
+                                components: {},
+                            },
+                            fields: [
+                                {
+                                    name: 'item',
+                                    type: 'text',
+                                    label: 'Opis',
+                                    required: true,
+                                    admin: { placeholder: 'np. Integracja z systemem ERP klienta' }
+                                },
+                                {
+                                    name: 'included',
+                                    type: 'select',
+                                    label: 'Status',
+                                    defaultValue: 'included',
+                                    options: [
+                                        { label: '✅ W zakresie', value: 'included' },
+                                        { label: '❌ Poza zakresem', value: 'excluded' },
                                     ]
                                 }
                             ]
@@ -193,38 +155,43 @@ export const Quotes: CollectionConfig = {
                     ]
                 },
 
-                // ── Finanse ─────────────────────────────────────────
+                // ── FINANSE ───────────────────────────────────────────
                 {
                     label: '💰 Finanse',
                     fields: [
                         {
-                            name: 'totalPrice',
-                            type: 'number',
-                            label: 'Cena całkowita netto (PLN)',
-                            required: true,
-                            admin: {
-                                width: '50%',
-                                description: 'Klient widzi rabat 10% przy płatności jednorazowej.',
-                                step: 100,
-                            }
-                        },
-                        {
-                            name: 'maintenancePrice',
-                            type: 'number',
-                            label: 'Cena utrzymania / miesiąc netto (PLN)',
-                            admin: {
-                                width: '50%',
-                                description: 'Zostaw puste jeśli nie oferujesz utrzymania.',
-                                step: 100,
-                            }
+                            type: 'row',
+                            fields: [
+                                {
+                                    name: 'totalPrice',
+                                    type: 'number',
+                                    label: 'Cena całkowita netto (PLN)',
+                                    required: true,
+                                    admin: {
+                                        width: '50%',
+                                        step: 100,
+                                        description: 'Klient widzi rabat 10% przy płatności jednorazowej.',
+                                    }
+                                },
+                                {
+                                    name: 'maintenancePrice',
+                                    type: 'number',
+                                    label: 'Cena utrzymania / miesiąc netto (PLN)',
+                                    admin: {
+                                        width: '50%',
+                                        step: 50,
+                                        description: 'Zostaw puste jeśli nie oferujesz utrzymania.',
+                                    }
+                                }
+                            ]
                         },
                         {
                             name: 'maintenanceDescription',
                             type: 'textarea',
                             label: 'Opis pakietu utrzymania',
                             admin: {
-                                placeholder: 'Co obejmuje abonament: np. hosting, poprawki, monitoring...',
-                                rows: 4,
+                                rows: 3,
+                                placeholder: 'Co obejmuje abonament: hosting, monitoring, poprawki...',
                                 condition: (data) => !!data.maintenancePrice,
                             }
                         },
@@ -238,7 +205,7 @@ export const Quotes: CollectionConfig = {
                     ]
                 },
 
-                // ── Status Płatności ────────────────────────────────
+                // ── PŁATNOŚĆ ──────────────────────────────────────────
                 {
                     label: '💳 Płatność',
                     fields: [
@@ -250,7 +217,7 @@ export const Quotes: CollectionConfig = {
                             options: [
                                 { label: '⏳ Nieopłacone', value: 'unpaid' },
                                 { label: '💛 I Rata (50%) opłacona', value: 'paid_half' },
-                                { label: '💚 Całość opłacona (-10%)', value: 'paid_full' }
+                                { label: '💚 Całość opłacona (–10%)', value: 'paid_full' }
                             ],
                             admin: { readOnly: true, description: 'Aktualizowane automatycznie przez webhook Stripe.' }
                         },
@@ -264,21 +231,26 @@ export const Quotes: CollectionConfig = {
                     ]
                 },
 
-                // ── Akcje ───────────────────────────────────────────
+                // ── AKCJE ─────────────────────────────────────────────
                 {
-                    label: '⚡ Akcje',
+                    label: '⚡ Akcje i Logi',
                     fields: [
                         {
-                            name: 'quoteSentAt',
-                            type: 'date',
-                            label: 'Wycena wysłana',
-                            admin: { readOnly: true, width: '50%' }
-                        },
-                        {
-                            name: 'subscriptionSentAt',
-                            type: 'date',
-                            label: 'Link subskrypcji wysłany',
-                            admin: { readOnly: true, width: '50%' }
+                            type: 'row',
+                            fields: [
+                                {
+                                    name: 'quoteSentAt',
+                                    type: 'date',
+                                    label: 'Wycena wysłana',
+                                    admin: { readOnly: true, width: '50%' }
+                                },
+                                {
+                                    name: 'subscriptionSentAt',
+                                    type: 'date',
+                                    label: 'Link subskrypcji wysłany',
+                                    admin: { readOnly: true, width: '50%' }
+                                }
+                            ]
                         },
                         { name: 'actionSendQuote', type: 'checkbox', admin: { hidden: true } },
                         { name: 'actionSendSubscription', type: 'checkbox', admin: { hidden: true } },
@@ -331,7 +303,7 @@ export const Quotes: CollectionConfig = {
                             id: typeof data.brief === 'object' ? data.brief.id : data.brief
                         });
                         if (brief?.clientEmail) {
-                            console.log('[Quotes] TODO: wysłać link subskrypcji do', brief.clientEmail);
+                            console.log('[Quotes] Wysyłam link subskrypcji do', brief.clientEmail);
                             data.subscriptionSentAt = new Date().toISOString();
                         }
                     }
@@ -411,7 +383,10 @@ export const Quotes: CollectionConfig = {
                 await req.payload.update({ collection: 'quotes', id: quote.id, data: { status: 'rejected' } });
 
                 if (typeof quote.brief === 'object' && quote.brief !== null) {
-                    await sendInternalChangeRequestEmail({ company: (quote.brief as any).company, message: body.message });
+                    await sendInternalChangeRequestEmail({
+                        company: (quote.brief as any).company,
+                        message: body.message
+                    });
                 }
 
                 return Response.json({ success: true });
@@ -445,17 +420,18 @@ export const Quotes: CollectionConfig = {
                     ? Math.round(quote.totalPrice / 2)
                     : Math.round(quote.totalPrice * 0.9);
 
-                const description = is50Percent
-                    ? `I Rata (50%) – ${brief.company}`
-                    : `Opłata całościowa (–10%) – ${brief.company}`;
-
                 try {
                     const session = await createStripeSession({
                         payment_method_types: ['card', 'blik', 'p24'],
                         line_items: [{
                             price_data: {
                                 currency: 'pln',
-                                product_data: { name: `Wycena Projektu – ${brief.company}`, description },
+                                product_data: {
+                                    name: `Wycena Projektu — ${brief.company}`,
+                                    description: is50Percent
+                                        ? `I Rata (50%) — ${brief.company}`
+                                        : `Opłata całościowa (–10%) — ${brief.company}`
+                                },
                                 unit_amount: Math.round(amountToCharge * 100)
                             },
                             quantity: 1,
