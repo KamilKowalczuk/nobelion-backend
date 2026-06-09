@@ -85,26 +85,29 @@ export const Quotes: CollectionConfig = {
                     fields: [
                         {
                             name: 'intro',
-                            type: 'richText',
-                            label: 'Wstęp / Opis projektu',
+                            type: 'textarea',
+                            label: 'Wstęp / Opis projektu (Markdown)',
                             admin: {
-                                description: 'Główna treść: kontekst, zakres, technologia. Obsługuje formatowanie (bold, listy, nagłówki).',
+                                rows: 10,
+                                description: 'Markdown: **pogrubienie**, *kursywa*, ## nagłówek, - lista, 1. lista numerowana, [tekst](https://...), > cytat. Pusta linia = nowy akapit.',
                             }
                         },
                         {
                             name: 'timelinePlan',
-                            type: 'richText',
-                            label: 'Plan realizacji',
+                            type: 'textarea',
+                            label: 'Plan realizacji (Markdown)',
                             admin: {
-                                description: 'Opisz etapy projektu. Użyj nagłówków (H2/H3) dla nazw faz, list i tekstu.',
+                                rows: 10,
+                                description: 'Etapy projektu. Np. "### Faza 1 — Analiza" + lista pod spodem. Obsługuje pełny Markdown.',
                             }
                         },
                         {
                             name: 'scopePlan',
-                            type: 'richText',
-                            label: 'Zakres prac',
+                            type: 'textarea',
+                            label: 'Zakres prac (Markdown)',
                             admin: {
-                                description: 'Co wchodzi w zakres, a co nie. Użyj list punktowanych.',
+                                rows: 10,
+                                description: 'Co wchodzi w zakres, a co nie. Użyj list: "- Pozycja w zakresie". Obsługuje pełny Markdown.',
                             }
                         }
                     ]

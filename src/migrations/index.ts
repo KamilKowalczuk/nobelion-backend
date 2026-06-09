@@ -9,6 +9,7 @@ import * as migration_20260514_104400_project_plan_to_textarea from './20260514_
 
 import * as migration_20260514_120000_add_quotes_tables from './20260514_120000_add_quotes_tables';
 import * as migration_20260609_140000_quotes_richtext_columns from './20260609_140000_quotes_richtext_columns';
+import * as migration_20260609_160000_quotes_content_to_markdown from './20260609_160000_quotes_content_to_markdown';
 
 export const migrations = [
   {
@@ -60,5 +61,10 @@ export const migrations = [
     up: migration_20260609_140000_quotes_richtext_columns.up,
     down: migration_20260609_140000_quotes_richtext_columns.down,
     name: '20260609_140000_quotes_richtext_columns'
+  },
+  {
+    up: migration_20260609_160000_quotes_content_to_markdown.up,
+    down: migration_20260609_160000_quotes_content_to_markdown.down,
+    name: '20260609_160000_quotes_content_to_markdown'
   },
 ];
