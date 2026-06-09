@@ -11,8 +11,10 @@ export const Orders: CollectionConfig = {
         plural: 'Zamówienia',
     },
     access: {
+        // Zamówienia tworzy wyłącznie webhook Stripe (lokalne API getPayload → overrideAccess).
+        // Publiczne create pozwalało wstrzykiwać fałszywe zamówienia ze statusem "paid".
         read: ({ req: { user } }) => !!user,
-        create: () => true,
+        create: ({ req: { user } }) => !!user,
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
     },

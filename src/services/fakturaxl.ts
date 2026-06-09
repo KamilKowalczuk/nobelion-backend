@@ -2,12 +2,20 @@ export const issueInvoice = async ({
     email,
     companyName,
     nip,
+    street,
+    postCode,
+    city,
+    phone,
     amountGross,
     description
 }: {
     email: string;
     companyName?: string;
     nip?: string;
+    street?: string;
+    postCode?: string;
+    city?: string;
+    phone?: string;
     amountGross: number;
     description: string;
 }) => {
@@ -21,8 +29,19 @@ export const issueInvoice = async ({
 
     // Typ nabywcy: 0 - firma, 1 - osoba prywatna
     const isCompany = !!nip;
-    
-    // Generowanie XML zgodnie z dokumentacją
+
+    // ── Zwolnienie z VAT ──
+    // Firma korzysta ze zwolnienia podmiotowego — stawka 'zw', brak naliczonego VAT.
+    // Konfigurowalne: FAKTURAXL_VAT_RATE (domyślnie 'zw'), podstawa prawna w uwagach.
+    const vatRate = process.env.FAKTURAXL_VAT_RATE || 'zw';
+    const isVatExempt = vatRate === 'zw';
+    const exemptionBasis = process.env.FAKTURAXL_VAT_EXEMPTION_BASIS
+        || 'Zwolnienie podmiotowe z VAT na podstawie art. 113 ust. 1 ustawy o VAT.';
+
+    const escapeXml = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const uwagiXml = isVatExempt ? `  <uwagi><![CDATA[${exemptionBasis}]]></uwagi>` : '';
+
     const xmlData = `
 <dokument>
   <api_token>${token}</api_token>
@@ -36,18 +55,23 @@ export const issueInvoice = async ({
   <rodzaj_platnosci>Stripe</rodzaj_platnosci>
   <wyslij_dokument_do_klienta_emailem>1</wyslij_dokument_do_klienta_emailem>
   <obliczaj_wartosc_faktury_od>1</obliczaj_wartosc_faktury_od>
+${uwagiXml}
   <nabywca>
     <firma_lub_osoba_prywatna>${isCompany ? '0' : '1'}</firma_lub_osoba_prywatna>
     <nazwa><![CDATA[${companyName || 'Klient detaliczny'}]]></nazwa>
     <nip>${nip || ''}</nip>
+    <adres><![CDATA[${street ? escapeXml(street) : ''}]]></adres>
+    <kod_pocztowy>${postCode ? escapeXml(postCode) : ''}</kod_pocztowy>
+    <miasto><![CDATA[${city ? escapeXml(city) : ''}]]></miasto>
     <kraj>PL</kraj>
-    <email>${email}</email>
+    <email>${escapeXml(email)}</email>
+    <telefon>${phone ? escapeXml(phone) : ''}</telefon>
   </nabywca>
   <faktura_pozycje>
-    <nazwa><![CDATA[${description}]]></nazwa>
+    <nazwa><![CDATA[${escapeXml(description)}]]></nazwa>
     <ilosc>1</ilosc>
     <jm>usł.</jm>
-    <vat>23</vat>
+    <vat>${vatRate}</vat>
     <wartosc_brutto>${amountGross.toFixed(2)}</wartosc_brutto>
   </faktura_pozycje>
 </dokument>
@@ -63,7 +87,7 @@ export const issueInvoice = async ({
         });
 
         const responseText = await response.text();
-        
+
         // Zgrubne parsowanie XML za pomocą RegExp (unikanie ciężkich bibliotek do XML w prostym przypadku)
         const kodMatch = responseText.match(/<kod>(.*?)<\/kod>/);
         const kod = kodMatch ? kodMatch[1] : null;
@@ -71,7 +95,7 @@ export const issueInvoice = async ({
         if (kod === '1') {
             const idMatch = responseText.match(/<dokument_id>(.*?)<\/dokument_id>/);
             const nrMatch = responseText.match(/<dokument_nr>(.*?)<\/dokument_nr>/);
-            
+
             return {
                 success: true,
                 invoiceId: idMatch ? idMatch[1] : null,

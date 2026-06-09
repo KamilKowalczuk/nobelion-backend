@@ -11,8 +11,10 @@ export const Media: CollectionConfig = {
         plural: 'Pliki',
     },
     access: {
-        read: () => true,
-        create: () => true,
+        // Załączniki briefów = poufne dokumenty klientów. Odczyt i upload tylko z auth
+        // (frontend /api/brief uderza z kluczem API → traktowany jako zalogowany user).
+        read: ({ req: { user } }) => !!user,
+        create: ({ req: { user } }) => !!user,
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
     },

@@ -15,7 +15,9 @@ export const Quotes: CollectionConfig = {
         plural: 'Wyceny',
     },
     access: {
-        read: () => true,
+        // Odczyt tylko dla zalogowanych. Klient czyta wycenę przez gated endpoint /client/:token
+        // (lokalne API → overrideAccess, więc działa mimo zamkniętego read).
+        read: ({ req: { user } }) => !!user,
         create: ({ req: { user } }) => !!user,
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
@@ -287,7 +289,25 @@ export const Quotes: CollectionConfig = {
                 const quote = quotes.docs[0];
                 if (quote.status === 'draft') return Response.json({ error: 'Wycena nie jest jeszcze dostępna' }, { status: 404 });
 
-                return Response.json(quote);
+                // Whitelist pól — nie zwracamy pól wewnętrznych (title, actionSend*, orderId)
+                // ani pełnego briefu z PII. Klient dostaje tylko to, co renderuje strona wyceny.
+                // (q jako any — payload-types.ts bywa nieaktualny po dodaniu pól richText.)
+                const q: any = quote;
+                const brief: any = (typeof q.brief === 'object' && q.brief !== null) ? q.brief : {};
+                return Response.json({
+                    status: q.status,
+                    totalPrice: q.totalPrice,
+                    maintenancePrice: q.maintenancePrice ?? null,
+                    maintenanceDescription: q.maintenanceDescription ?? null,
+                    clientSelectedMaintenance: q.clientSelectedMaintenance ?? false,
+                    intro: q.intro ?? null,
+                    timelinePlan: q.timelinePlan ?? null,
+                    scopePlan: q.scopePlan ?? null,
+                    brief: {
+                        company: brief.company ?? null,
+                        problemDescription: brief.problemDescription ?? null,
+                    },
+                });
             }
         },
         {
@@ -393,6 +413,18 @@ export const Quotes: CollectionConfig = {
                         success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
                         cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
                         customer_email: brief.clientEmail,
+                        // ── Dane do faktury (przekazywane do FakturaXL przez webhook) ──
+                        // Adres rozliczeniowy + telefon zbieramy wbudowanymi mechanizmami Stripe.
+                        billing_address_collection: 'required',
+                        phone_number_collection: { enabled: true },
+                        // Własne pole NIP — NIE Stripe tax_id (tamto wymaga prefiksu kraju "PL...").
+                        custom_fields: [{
+                            key: 'nip',
+                            label: { type: 'custom', custom: 'NIP do faktury (firma)' },
+                            type: 'text',
+                            text: { minimum_length: 10, maximum_length: 15 },
+                            optional: true,
+                        }],
                         metadata: {
                             quoteId: String(quote.id),
                             briefId: String(brief.id),
@@ -402,7 +434,9 @@ export const Quotes: CollectionConfig = {
 
                     return Response.json({ url: session.url });
                 } catch (error: any) {
-                    return Response.json({ error: error.message }, { status: 500 });
+                    // Nie ujawniamy klientowi szczegółów błędu (SDK/Stripe/infrastruktura).
+                    console.error('[Quotes checkout] Błąd tworzenia sesji Stripe:', error?.message || error);
+                    return Response.json({ error: 'Nie udało się utworzyć sesji płatności. Spróbuj ponownie później.' }, { status: 500 });
                 }
             }
         }

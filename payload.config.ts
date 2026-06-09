@@ -7,6 +7,21 @@ import { Users } from './src/collections/Users';
 import { Quotes } from './src/collections/Quotes';
 import { Media } from './src/collections/Media';
 
+// Origins produkcyjne zawsze; localhost tylko poza produkcją (dev).
+const isProd = process.env.NODE_ENV === 'production';
+
+// Fail-closed: w produkcji nie wolno wystartować ze słabym/domyślnym sekretem JWT.
+const payloadSecret = process.env.PAYLOAD_SECRET;
+if (isProd && (!payloadSecret || payloadSecret === 'replace-me' || payloadSecret.length < 24)) {
+    throw new Error('[Nobelion CMS] PAYLOAD_SECRET musi być ustawiony (min. 24 znaki) w produkcji.');
+}
+const allowedOrigins = [
+    'https://nobelion.pl',
+    'https://www.nobelion.pl',
+    'https://admin.nobelion.pl',
+    ...(isProd ? [] : ['http://localhost:4321', 'http://localhost:3000', 'http://localhost:3001']),
+];
+
 export default buildConfig({
     editor: lexicalEditor({
         features: ({ defaultFeatures }) => [...defaultFeatures],
@@ -230,15 +245,19 @@ export default buildConfig({
             console.error('[Nobelion CMS] Błąd podczas auto-naprawy bazy danych:', err);
         }
     },
-    secret: process.env.PAYLOAD_SECRET || 'replace-me',
-    cors: ['https://nobelion.pl', 'https://www.nobelion.pl', 'https://admin.nobelion.pl', 'http://localhost:4321', 'http://localhost:3000', 'http://localhost:3001'],
-    csrf: ['https://nobelion.pl', 'https://www.nobelion.pl', 'https://admin.nobelion.pl', 'http://localhost:4321', 'http://localhost:3000', 'http://localhost:3001'],
+    secret: payloadSecret || 'dev-only-insecure-secret',
+    cors: allowedOrigins,
+    csrf: allowedOrigins,
     collections: [Users, Briefs, Orders, Quotes, Media],
     db: postgresAdapter({
         pool: {
             connectionString: process.env.DATABASE_URI
         },
-        push: true
+        // push: false — schemat zarządzany migracjami (Docker CMD: `payload migrate`),
+        // a idempotentny onInit gwarantuje obecność kolumn. push:true auto-modyfikował
+        // schemat na podstawie diffu kodu (ryzyko utraty danych) — wyłączone.
+        push: false,
+        migrationDir: './src/migrations',
     }),
     admin: {
         user: 'users'

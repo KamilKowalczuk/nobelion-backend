@@ -203,3 +203,37 @@ export const sendInternalChangeRequestEmail = async ({
         console.log(`[Email] Powiadomienie o poprawkach wysłane, Resend id: ${data?.id}`);
     }
 };
+
+export const sendPaymentConfirmation = async ({
+    to,
+    orderNumber,
+    amount,
+}: {
+    to: string,
+    orderNumber: string,
+    amount: number,
+}) => {
+    const resend = getResend();
+
+    const { data, error } = await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to,
+        subject: 'Płatność potwierdzona — zaczynamy',
+        html: renderBrandedEmail({
+            preheader: 'Płatność została potwierdzona. Rozpoczynamy realizację kolejnego etapu.',
+            eyebrow: 'Płatność potwierdzona',
+            title: 'Zaczynamy',
+            intro: 'Dziękujemy za płatność. Zamówienie zostało potwierdzone i przechodzimy do realizacji ustalonego zakresu. Faktura zostanie wysłana w osobnej wiadomości.',
+            sections: [
+                { label: 'Numer zamówienia', value: orderNumber },
+                { label: 'Kwota', value: formatMoney(amount) },
+            ],
+        }),
+    });
+
+    if (error) {
+        console.error('[Email] BŁĄD Resend (potwierdzenie płatności):', JSON.stringify(error));
+    } else {
+        console.log(`[Email] Potwierdzenie płatności wysłane do ${to}, Resend id: ${data?.id}`);
+    }
+};

@@ -13,8 +13,10 @@ export const Briefs: CollectionConfig = {
         plural: 'Briefy',
     },
     access: {
+        // Brief tworzy frontend /api/brief z kluczem API (honeypot + walidacja po stronie frontu).
+        // Bezpośredni publiczny POST do /api/briefs omijał walidację — zamknięte do auth.
         read: ({ req: { user } }) => !!user,
-        create: () => true,
+        create: ({ req: { user } }) => !!user,
         update: ({ req: { user } }) => !!user,
         delete: ({ req: { user } }) => !!user,
     },
