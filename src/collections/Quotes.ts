@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload';
 import { sendQuoteEmail, sendInternalChangeRequestEmail } from '../services/email';
 import { createStripeSession } from '../services/briefs';
+import { isRateLimited } from '../services/rateLimit';
 import crypto from 'crypto';
 
 export const Quotes: CollectionConfig = {
@@ -341,11 +342,16 @@ export const Quotes: CollectionConfig = {
             path: '/request-change/:token',
             method: 'post',
             handler: async (req) => {
+                if (isRateLimited(req.headers as Headers, { key: 'quote-change', limit: 5, windowMs: 10 * 60 * 1000 })) {
+                    return Response.json({ error: 'Zbyt wiele żądań. Spróbuj ponownie później.' }, { status: 429 });
+                }
                 const token = req.routeParams?.token;
                 if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
 
                 const body = await req.json();
-                if (!body.message) return Response.json({ error: 'Brak wiadomości' }, { status: 400 });
+                const message = typeof body.message === 'string' ? body.message.trim() : '';
+                if (!message) return Response.json({ error: 'Brak wiadomości' }, { status: 400 });
+                if (message.length > 2000) return Response.json({ error: 'Wiadomość jest zbyt długa (max 2000 znaków).' }, { status: 400 });
 
                 const quotes = await req.payload.find({
                     collection: 'quotes',
@@ -361,7 +367,7 @@ export const Quotes: CollectionConfig = {
                 if (typeof quote.brief === 'object' && quote.brief !== null) {
                     await sendInternalChangeRequestEmail({
                         company: (quote.brief as any).company,
-                        message: body.message
+                        message
                     });
                 }
 
@@ -372,6 +378,9 @@ export const Quotes: CollectionConfig = {
             path: '/checkout/:token',
             method: 'post',
             handler: async (req) => {
+                if (isRateLimited(req.headers as Headers, { key: 'quote-checkout', limit: 10, windowMs: 10 * 60 * 1000 })) {
+                    return Response.json({ error: 'Zbyt wiele żądań. Spróbuj ponownie później.' }, { status: 429 });
+                }
                 const token = req.routeParams?.token;
                 if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
 
