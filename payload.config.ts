@@ -239,6 +239,24 @@ export default buildConfig({
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
                 ALTER TABLE "briefs" ADD COLUMN IF NOT EXISTS "client_label" varchar;
+
+                DO $$ BEGIN
+                    CREATE TYPE "public"."enum_quotes_subscription_status" AS ENUM('none', 'active', 'canceled');
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_status" "enum_quotes_subscription_status" DEFAULT 'none';
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "stripe_subscription_id" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "stripe_customer_id" varchar;
+                CREATE INDEX IF NOT EXISTS "quotes_stripe_subscription_id_idx" ON "quotes" ("stripe_subscription_id");
+
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_billing_company_name" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_billing_nip" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_billing_street" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_billing_city" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_billing_postal_code" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_billing_phone" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "action_send_final_payment" boolean;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "final_payment_sent_at" timestamp(3) with time zone;
             `);
             console.log('[Nobelion CMS] Nowe tabele dla wycen (timeline, scope) gotowe.');
         } catch (err) {

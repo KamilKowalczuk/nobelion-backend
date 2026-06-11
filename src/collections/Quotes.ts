@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload';
-import { sendQuoteEmail, sendInternalChangeRequestEmail } from '../services/email';
-import { createStripeSession } from '../services/briefs';
+import { sendQuoteEmail, sendInternalChangeRequestEmail, sendSubscriptionEmail, sendFinalPaymentEmail } from '../services/email';
+import { createStripeSession, createBillingPortalSession, getCmsPublicUrl, invoiceDataCollection } from '../services/briefs';
 import { isRateLimited } from '../services/rateLimit';
 import crypto from 'crypto';
 
@@ -176,7 +176,7 @@ export const Quotes: CollectionConfig = {
                             options: [
                                 { label: '⏳ Nieopłacone', value: 'unpaid' },
                                 { label: '💛 I Rata (50%) opłacona', value: 'paid_half' },
-                                { label: '💚 Całość opłacona (–10%)', value: 'paid_full' }
+                                { label: '💚 Całość opłacona', value: 'paid_full' }
                             ],
                             admin: { readOnly: true, description: 'Aktualizowane automatycznie przez webhook Stripe.' }
                         },
@@ -186,6 +186,66 @@ export const Quotes: CollectionConfig = {
                             relationTo: 'orders',
                             label: 'Powiązane Zamówienie',
                             admin: { readOnly: true, description: 'Wypełniane automatycznie po płatności.' }
+                        },
+                        {
+                            name: 'subscriptionStatus',
+                            type: 'select',
+                            label: 'Status subskrypcji (utrzymanie)',
+                            defaultValue: 'none',
+                            options: [
+                                { label: '— Brak', value: 'none' },
+                                { label: '💚 Aktywna', value: 'active' },
+                                { label: '🔴 Anulowana przez klienta', value: 'canceled' }
+                            ],
+                            admin: { readOnly: true, description: 'Aktualizowane automatycznie przez webhook Stripe.' }
+                        },
+                        {
+                            type: 'row',
+                            fields: [
+                                {
+                                    name: 'stripeSubscriptionId',
+                                    type: 'text',
+                                    label: 'Stripe Subscription ID',
+                                    admin: { readOnly: true, width: '50%' }
+                                },
+                                {
+                                    name: 'stripeCustomerId',
+                                    type: 'text',
+                                    label: 'Stripe Customer ID',
+                                    admin: { readOnly: true, width: '50%' }
+                                }
+                            ]
+                        },
+                        {
+                            name: 'subscriptionBilling',
+                            type: 'group',
+                            label: 'Dane do faktur subskrypcyjnych',
+                            admin: {
+                                description: 'Zapisywane automatycznie z checkoutu Stripe przy aktywacji subskrypcji. Używane przez FakturaXL przy każdej płatności cyklicznej.',
+                            },
+                            fields: [
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'companyName', type: 'text', label: 'Nazwa firmy', admin: { readOnly: true, width: '50%' } },
+                                        { name: 'nip', type: 'text', label: 'NIP', admin: { readOnly: true, width: '50%' } },
+                                    ]
+                                },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'street', type: 'text', label: 'Ulica', admin: { readOnly: true, width: '50%' } },
+                                        { name: 'city', type: 'text', label: 'Miasto', admin: { readOnly: true, width: '50%' } },
+                                    ]
+                                },
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'postalCode', type: 'text', label: 'Kod pocztowy', admin: { readOnly: true, width: '50%' } },
+                                        { name: 'phone', type: 'text', label: 'Telefon', admin: { readOnly: true, width: '50%' } },
+                                    ]
+                                },
+                            ]
                         }
                     ]
                 },
@@ -201,18 +261,25 @@ export const Quotes: CollectionConfig = {
                                     name: 'quoteSentAt',
                                     type: 'date',
                                     label: 'Wycena wysłana',
-                                    admin: { readOnly: true, width: '50%' }
+                                    admin: { readOnly: true, width: '33%' }
                                 },
                                 {
                                     name: 'subscriptionSentAt',
                                     type: 'date',
                                     label: 'Link subskrypcji wysłany',
-                                    admin: { readOnly: true, width: '50%' }
+                                    admin: { readOnly: true, width: '33%' }
+                                },
+                                {
+                                    name: 'finalPaymentSentAt',
+                                    type: 'date',
+                                    label: 'Link II raty wysłany',
+                                    admin: { readOnly: true, width: '33%' }
                                 }
                             ]
                         },
                         { name: 'actionSendQuote', type: 'checkbox', admin: { hidden: true } },
                         { name: 'actionSendSubscription', type: 'checkbox', admin: { hidden: true } },
+                        { name: 'actionSendFinalPayment', type: 'checkbox', admin: { hidden: true } },
                         {
                             name: 'buttonActions',
                             type: 'ui',
@@ -256,17 +323,53 @@ export const Quotes: CollectionConfig = {
                 }
 
                 if (data.actionSendSubscription === true) {
-                    if (data.brief) {
-                        const brief = await req.payload.findByID({
-                            collection: 'briefs',
-                            id: typeof data.brief === 'object' ? data.brief.id : data.brief
-                        });
-                        if (brief?.clientEmail) {
-                            console.log('[Quotes] Wysyłam link subskrypcji do', brief.clientEmail);
-                            data.subscriptionSentAt = new Date().toISOString();
-                        }
+                    if (!data.brief) throw new Error('Nie można wysłać linku subskrypcji bez powiązanego briefu.');
+                    if (!data.maintenancePrice || data.maintenancePrice <= 0) {
+                        throw new Error('Ustaw cenę utrzymania (Finanse → Cena utrzymania / miesiąc) przed wysłaniem linku subskrypcji.');
                     }
+
+                    const brief = await req.payload.findByID({
+                        collection: 'briefs',
+                        id: typeof data.brief === 'object' ? data.brief.id : data.brief
+                    });
+                    if (!brief?.clientEmail) throw new Error('Brief nie ma adresu email klienta.');
+
+                    const cmsUrl = getCmsPublicUrl();
+                    await sendSubscriptionEmail({
+                        to: brief.clientEmail,
+                        companyName: brief.company,
+                        monthlyAmount: data.maintenancePrice,
+                        description: data.maintenanceDescription,
+                        subscribeUrl: `${cmsUrl}/api/quotes/subscribe/${data.quoteToken}`,
+                        portalUrl: `${cmsUrl}/api/quotes/subscription-portal/${data.quoteToken}`,
+                    });
+                    data.subscriptionSentAt = new Date().toISOString();
                     data.actionSendSubscription = false;
+                }
+
+                if (data.actionSendFinalPayment === true) {
+                    if (data.paymentStatus !== 'paid_half') {
+                        throw new Error('Link do II raty można wysłać dopiero po opłaceniu I raty (50%).');
+                    }
+                    if (!data.brief) throw new Error('Nie można wysłać linku płatności bez powiązanego briefu.');
+                    if (!data.totalPrice || data.totalPrice <= 0) throw new Error('Brak ceny całkowitej w wycenie.');
+
+                    const brief = await req.payload.findByID({
+                        collection: 'briefs',
+                        id: typeof data.brief === 'object' ? data.brief.id : data.brief
+                    });
+                    if (!brief?.clientEmail) throw new Error('Brief nie ma adresu email klienta.');
+
+                    // I rata = zaokrąglone 50%; II rata = dokładna reszta (suma rat = cena całkowita).
+                    const remaining = data.totalPrice - Math.round(data.totalPrice / 2);
+                    await sendFinalPaymentEmail({
+                        to: brief.clientEmail,
+                        companyName: brief.company,
+                        amount: remaining,
+                        payUrl: `${getCmsPublicUrl()}/api/quotes/pay-final/${data.quoteToken}`,
+                    });
+                    data.finalPaymentSentAt = new Date().toISOString();
+                    data.actionSendFinalPayment = false;
                 }
 
                 return data;
@@ -425,18 +528,8 @@ export const Quotes: CollectionConfig = {
                         success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
                         cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
                         customer_email: brief.clientEmail,
-                        // ── Dane do faktury (przekazywane do FakturaXL przez webhook) ──
-                        // Adres rozliczeniowy + telefon zbieramy wbudowanymi mechanizmami Stripe.
-                        billing_address_collection: 'required',
-                        phone_number_collection: { enabled: true },
-                        // Własne pole NIP — NIE Stripe tax_id (tamto wymaga prefiksu kraju "PL...").
-                        custom_fields: [{
-                            key: 'nip',
-                            label: { type: 'custom', custom: 'NIP do faktury (firma)' },
-                            type: 'text',
-                            text: { minimum_length: 10, maximum_length: 15 },
-                            optional: true,
-                        }],
+                        // Dane do faktury (adres, telefon, NIP) — wspólna definicja w services/briefs.ts.
+                        ...invoiceDataCollection,
                         metadata: {
                             quoteId: String(quote.id),
                             briefId: String(brief.id),
@@ -449,6 +542,184 @@ export const Quotes: CollectionConfig = {
                     // Nie ujawniamy klientowi szczegółów błędu (SDK/Stripe/infrastruktura).
                     console.error('[Quotes checkout] Błąd tworzenia sesji Stripe:', error?.message || error);
                     return Response.json({ error: 'Nie udało się utworzyć sesji płatności. Spróbuj ponownie później.' }, { status: 500 });
+                }
+            }
+        },
+        {
+            // Link z maila "Aktywuj subskrypcję" — tworzy świeżą sesję Stripe Checkout
+            // (mode=subscription) i przekierowuje klienta. Sesje wygasają po 24h,
+            // dlatego mail linkuje tutaj, a nie bezpośrednio do session.url.
+            path: '/subscribe/:token',
+            method: 'get',
+            handler: async (req) => {
+                if (isRateLimited(req.headers as Headers, { key: 'quote-subscribe', limit: 10, windowMs: 10 * 60 * 1000 })) {
+                    return new Response('Zbyt wiele żądań. Spróbuj ponownie później.', { status: 429 });
+                }
+                const token = req.routeParams?.token;
+                if (!token) return new Response('Brak tokenu', { status: 400 });
+
+                const quotes = await req.payload.find({
+                    collection: 'quotes',
+                    where: { quoteToken: { equals: token } },
+                    limit: 1,
+                    depth: 1
+                });
+                if (quotes.docs.length === 0) return new Response('Nie znaleziono wyceny', { status: 404 });
+
+                const quote: any = quotes.docs[0];
+                const brief: any = quote.brief;
+                if (!quote.maintenancePrice || quote.maintenancePrice <= 0 || !brief || typeof brief !== 'object') {
+                    return new Response('Subskrypcja nie jest dostępna dla tej wyceny.', { status: 400 });
+                }
+                // Subskrypcja już działa — zamiast drugiej płatności kierujemy do portalu zarządzania.
+                if (quote.subscriptionStatus === 'active' && quote.stripeCustomerId) {
+                    return Response.redirect(`${getCmsPublicUrl()}/api/quotes/subscription-portal/${token}`, 303);
+                }
+
+                try {
+                    const session = await createStripeSession({
+                        mode: 'subscription',
+                        // Płatności cykliczne: tylko karta (BLIK/P24 nie wspierają subskrypcji).
+                        payment_method_types: ['card'],
+                        line_items: [{
+                            price_data: {
+                                currency: 'pln',
+                                recurring: { interval: 'month' },
+                                product_data: {
+                                    name: `Utrzymanie i opieka techniczna — ${brief.company}`,
+                                    ...(quote.maintenanceDescription
+                                        ? { description: String(quote.maintenanceDescription).slice(0, 500) }
+                                        : {}),
+                                },
+                                unit_amount: Math.round(quote.maintenancePrice * 100),
+                            },
+                            quantity: 1,
+                        }],
+                        customer_email: brief.clientEmail,
+                        ...invoiceDataCollection,
+                        // Metadata na subskrypcji — webhook invoice.paid odczytuje z niej quoteId.
+                        subscription_data: {
+                            metadata: {
+                                quoteId: String(quote.id),
+                                briefId: String(brief.id),
+                            }
+                        },
+                        metadata: {
+                            quoteId: String(quote.id),
+                            briefId: String(brief.id),
+                            paymentModel: 'subscription',
+                        },
+                        success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
+                        cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
+                    });
+
+                    if (!session.url) throw new Error('Stripe nie zwrócił URL sesji.');
+                    return Response.redirect(session.url, 303);
+                } catch (error: any) {
+                    console.error('[Quotes subscribe] Błąd tworzenia sesji subskrypcji:', error?.message || error);
+                    return new Response('Nie udało się rozpocząć subskrypcji. Spróbuj ponownie później.', { status: 500 });
+                }
+            }
+        },
+        {
+            // Link z maila "Opłać II ratę" — świeża sesja Stripe na pozostałe 50%
+            // (sesje wygasają po 24h, dlatego mail linkuje tutaj).
+            path: '/pay-final/:token',
+            method: 'get',
+            handler: async (req) => {
+                if (isRateLimited(req.headers as Headers, { key: 'quote-pay-final', limit: 10, windowMs: 10 * 60 * 1000 })) {
+                    return new Response('Zbyt wiele żądań. Spróbuj ponownie później.', { status: 429 });
+                }
+                const token = req.routeParams?.token;
+                if (!token) return new Response('Brak tokenu', { status: 400 });
+
+                const quotes = await req.payload.find({
+                    collection: 'quotes',
+                    where: { quoteToken: { equals: token } },
+                    limit: 1,
+                    depth: 1
+                });
+                if (quotes.docs.length === 0) return new Response('Nie znaleziono wyceny', { status: 404 });
+
+                const quote: any = quotes.docs[0];
+                const brief: any = quote.brief;
+                if (!quote.totalPrice || !brief || typeof brief !== 'object') {
+                    return new Response('Brak danych do płatności.', { status: 400 });
+                }
+                if (quote.paymentStatus === 'paid_full') {
+                    return new Response('Zamówienie jest już w pełni opłacone. Dziękujemy!', { status: 200 });
+                }
+                if (quote.paymentStatus !== 'paid_half') {
+                    return new Response('Płatność II raty będzie dostępna po zaksięgowaniu I raty.', { status: 400 });
+                }
+
+                const remaining = quote.totalPrice - Math.round(quote.totalPrice / 2);
+
+                try {
+                    const session = await createStripeSession({
+                        mode: 'payment',
+                        payment_method_types: ['card', 'blik', 'p24'],
+                        line_items: [{
+                            price_data: {
+                                currency: 'pln',
+                                product_data: {
+                                    name: `Wycena Projektu — ${brief.company}`,
+                                    description: `II Rata (płatność końcowa) — ${brief.company}`
+                                },
+                                unit_amount: Math.round(remaining * 100)
+                            },
+                            quantity: 1,
+                        }],
+                        customer_email: brief.clientEmail,
+                        ...invoiceDataCollection,
+                        metadata: {
+                            quoteId: String(quote.id),
+                            briefId: String(brief.id),
+                            paymentModel: 'final50',
+                        },
+                        success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
+                        cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
+                    });
+
+                    if (!session.url) throw new Error('Stripe nie zwrócił URL sesji.');
+                    return Response.redirect(session.url, 303);
+                } catch (error: any) {
+                    console.error('[Quotes pay-final] Błąd tworzenia sesji II raty:', error?.message || error);
+                    return new Response('Nie udało się rozpocząć płatności. Spróbuj ponownie później.', { status: 500 });
+                }
+            }
+        },
+        {
+            // Stripe Billing Portal — klient samodzielnie zarządza subskrypcją
+            // (anulowanie, zmiana karty, historia faktur).
+            path: '/subscription-portal/:token',
+            method: 'get',
+            handler: async (req) => {
+                if (isRateLimited(req.headers as Headers, { key: 'quote-portal', limit: 10, windowMs: 10 * 60 * 1000 })) {
+                    return new Response('Zbyt wiele żądań. Spróbuj ponownie później.', { status: 429 });
+                }
+                const token = req.routeParams?.token;
+                if (!token) return new Response('Brak tokenu', { status: 400 });
+
+                const quotes = await req.payload.find({
+                    collection: 'quotes',
+                    where: { quoteToken: { equals: token } },
+                    limit: 1
+                });
+                if (quotes.docs.length === 0) return new Response('Nie znaleziono wyceny', { status: 404 });
+
+                const quote: any = quotes.docs[0];
+                if (!quote.stripeCustomerId) {
+                    return new Response('Subskrypcja nie została jeszcze aktywowana — najpierw skorzystaj z linku aktywacyjnego.', { status: 404 });
+                }
+
+                try {
+                    const returnUrl = (process.env.FRONTEND_URL || 'https://nobelion.pl').replace(/\/$/, '');
+                    const portal = await createBillingPortalSession(quote.stripeCustomerId, returnUrl);
+                    return Response.redirect(portal.url, 303);
+                } catch (error: any) {
+                    console.error('[Quotes portal] Błąd tworzenia sesji portalu:', error?.message || error);
+                    return new Response('Nie udało się otworzyć panelu subskrypcji. Spróbuj ponownie później.', { status: 500 });
                 }
             }
         }

@@ -71,6 +71,7 @@ export interface Config {
     briefs: Brief;
     orders: Order;
     quotes: Quote;
+    media: Media;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -82,6 +83,7 @@ export interface Config {
     briefs: BriefsSelect<false> | BriefsSelect<true>;
     orders: OrdersSelect<false> | OrdersSelect<true>;
     quotes: QuotesSelect<false> | QuotesSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -151,6 +153,8 @@ export interface User {
   collection: 'users';
 }
 /**
+ * Wpisz nazwę firmy, imię lub email żeby filtrować w wyszukiwarce.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "briefs".
  */
@@ -166,7 +170,9 @@ export interface Brief {
   company: string;
   nip?: string | null;
   problemDescription: string;
+  attachments?: (number | Media)[] | null;
   hoursWeek?: number | null;
+  laborRate?: ('low' | 'mid' | 'high') | null;
   peopleInvolved?: string | null;
   growsWithScale?: string | null;
   triedBefore?:
@@ -179,7 +185,7 @@ export interface Brief {
     | boolean
     | null;
   triedNotes?: string | null;
-  urgency?: ('palace' | 'miesiac' | 'kwartal' | 'rozwazam') | null;
+  urgency?: ('low' | 'medium' | 'high' | 'urgent') | null;
   scope?: ('mvp' | 'pelny' | 'doradzcie') | null;
   budget?: string | null;
   agreedPrivacy: boolean;
@@ -188,6 +194,35 @@ export interface Brief {
   source?: string | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  alt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -227,64 +262,82 @@ export interface Order {
   createdAt: string;
 }
 /**
+ * Wyceny dla klientów. Uzupełnij treść, ustaw cenę i kliknij "Wyślij wycenę do klienta".
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "quotes".
  */
 export interface Quote {
   id: number;
+  /**
+   * Tylko do użytku wewnętrznego. Klient tego nie widzi.
+   */
   title: string;
+  /**
+   * Wpisz nazwę firmy, imię lub email klienta żeby znaleźć odpowiedni brief.
+   */
   brief: number | Brief;
   status?: ('draft' | 'sent' | 'accepted' | 'rejected') | null;
+  /**
+   * Auto-generowany. Klient wchodzi przez /wycena/{token}
+   */
   quoteToken?: string | null;
-  content?:
-    | (
-        | {
-            text?: {
-              root: {
-                type: string;
-                children: {
-                  type: any;
-                  version: number;
-                  [k: string]: unknown;
-                }[];
-                direction: ('ltr' | 'rtl') | null;
-                format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-                indent: number;
-                version: number;
-              };
-              [k: string]: unknown;
-            } | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'richText';
-          }
-        | {
-            phaseName: string;
-            description?: string | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'timeline';
-          }
-      )[]
-    | null;
+  /**
+   * Markdown: **pogrubienie**, *kursywa*, ## nagłówek, - lista, 1. lista numerowana, [tekst](https://...), > cytat. Pusta linia = nowy akapit.
+   */
+  intro?: string | null;
+  /**
+   * Etapy projektu. Np. "### Faza 1 — Analiza" + lista pod spodem. Obsługuje pełny Markdown.
+   */
+  timelinePlan?: string | null;
+  /**
+   * Co wchodzi w zakres, a co nie. Użyj list: "- Pozycja w zakresie". Obsługuje pełny Markdown.
+   */
+  scopePlan?: string | null;
+  /**
+   * Klient widzi rabat 10% przy płatności jednorazowej.
+   */
   totalPrice: number;
+  /**
+   * Zostaw puste jeśli nie oferujesz utrzymania.
+   */
   maintenancePrice?: number | null;
   maintenanceDescription?: string | null;
+  /**
+   * Aktualizowane przez klienta na stronie wyceny.
+   */
   clientSelectedMaintenance?: boolean | null;
   /**
-   * Aktualizowane przez webhook Stripe.
+   * Aktualizowane automatycznie przez webhook Stripe.
    */
   paymentStatus?: ('unpaid' | 'paid_half' | 'paid_full') | null;
+  /**
+   * Wypełniane automatycznie po płatności.
+   */
   orderId?: (number | null) | Order;
+  /**
+   * Aktualizowane automatycznie przez webhook Stripe.
+   */
+  subscriptionStatus?: ('none' | 'active' | 'canceled') | null;
+  stripeSubscriptionId?: string | null;
+  stripeCustomerId?: string | null;
+  /**
+   * Zapisywane automatycznie z checkoutu Stripe przy aktywacji subskrypcji. Używane przez FakturaXL przy każdej płatności cyklicznej.
+   */
+  subscriptionBilling?: {
+    companyName?: string | null;
+    nip?: string | null;
+    street?: string | null;
+    city?: string | null;
+    postalCode?: string | null;
+    phone?: string | null;
+  };
   quoteSentAt?: string | null;
-  /**
-   * Zaznacz to pole i kliknij Zapisz, aby wysłać maila do klienta.
-   */
+  subscriptionSentAt?: string | null;
+  finalPaymentSentAt?: string | null;
   actionSendQuote?: boolean | null;
-  /**
-   * Wysyła maila z linkiem do podpięcia karty na poczet abonamentu za utrzymanie.
-   */
   actionSendSubscription?: boolean | null;
+  actionSendFinalPayment?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -327,6 +380,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'quotes';
         value: number | Quote;
+      } | null)
+    | ({
+        relationTo: 'media';
+        value: number | Media;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -411,7 +468,9 @@ export interface BriefsSelect<T extends boolean = true> {
   company?: T;
   nip?: T;
   problemDescription?: T;
+  attachments?: T;
   hoursWeek?: T;
+  laborRate?: T;
   peopleInvolved?: T;
   growsWithScale?: T;
   triedBefore?: T;
@@ -471,36 +530,68 @@ export interface QuotesSelect<T extends boolean = true> {
   brief?: T;
   status?: T;
   quoteToken?: T;
-  content?:
-    | T
-    | {
-        richText?:
-          | T
-          | {
-              text?: T;
-              id?: T;
-              blockName?: T;
-            };
-        timeline?:
-          | T
-          | {
-              phaseName?: T;
-              description?: T;
-              id?: T;
-              blockName?: T;
-            };
-      };
+  intro?: T;
+  timelinePlan?: T;
+  scopePlan?: T;
   totalPrice?: T;
   maintenancePrice?: T;
   maintenanceDescription?: T;
   clientSelectedMaintenance?: T;
   paymentStatus?: T;
   orderId?: T;
+  subscriptionStatus?: T;
+  stripeSubscriptionId?: T;
+  stripeCustomerId?: T;
+  subscriptionBilling?:
+    | T
+    | {
+        companyName?: T;
+        nip?: T;
+        street?: T;
+        city?: T;
+        postalCode?: T;
+        phone?: T;
+      };
   quoteSentAt?: T;
+  subscriptionSentAt?: T;
+  finalPaymentSentAt?: T;
   actionSendQuote?: T;
   actionSendSubscription?: T;
+  actionSendFinalPayment?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media_select".
+ */
+export interface MediaSelect<T extends boolean = true> {
+  alt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

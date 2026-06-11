@@ -15,6 +15,11 @@ type BrandedEmailData = {
         label: string;
         url: string;
     };
+    // Dyskretny link tekstowy pod CTA (np. anulowanie subskrypcji).
+    secondaryLink?: {
+        label: string;
+        url: string;
+    };
     note?: string;
 };
 
@@ -54,7 +59,7 @@ function formatMoney(amount: number): string {
     }).format(amount || 0);
 }
 
-function renderBrandedEmail({ preheader, eyebrow, title, intro, sections = [], cta, note }: BrandedEmailData): string {
+function renderBrandedEmail({ preheader, eyebrow, title, intro, sections = [], cta, secondaryLink, note }: BrandedEmailData): string {
     const sectionHtml = sections.map(section => `
         <tr>
             <td style="padding:18px 0;border-top:1px solid rgba(232,230,223,0.12);">
@@ -73,6 +78,15 @@ function renderBrandedEmail({ preheader, eyebrow, title, intro, sections = [], c
         <tr>
             <td style="padding:12px 0 0;text-align:center;font-size:12px;line-height:1.6;color:#9CA3AF;">
                 Jeśli przycisk nie działa, skopiuj adres:<br><span style="color:#C5A059;word-break:break-all;">${escapeHtml(cta.url)}</span>
+            </td>
+        </tr>
+    ` : '';
+
+    const secondaryLinkHtml = secondaryLink ? `
+        <tr>
+            <td style="padding:18px 0 0;text-align:center;font-size:13px;line-height:1.6;color:#9CA3AF;">
+                ${escapeHtml(secondaryLink.label)}<br>
+                <a href="${escapeHtml(secondaryLink.url)}" style="color:#C5A059;text-decoration:underline;word-break:break-all;">${escapeHtml(secondaryLink.url)}</a>
             </td>
         </tr>
     ` : '';
@@ -111,6 +125,7 @@ function renderBrandedEmail({ preheader, eyebrow, title, intro, sections = [], c
                                 </tr>
                                 ${sectionHtml}
                                 ${ctaHtml}
+                                ${secondaryLinkHtml}
                                 ${noteHtml}
                             </table>
                         </td>
@@ -201,6 +216,139 @@ export const sendInternalChangeRequestEmail = async ({
         console.error('[Email] BŁĄD Resend (zmiana wyceny):', JSON.stringify(error));
     } else {
         console.log(`[Email] Powiadomienie o poprawkach wysłane, Resend id: ${data?.id}`);
+    }
+};
+
+export const sendSubscriptionEmail = async ({
+    to,
+    companyName,
+    monthlyAmount,
+    description,
+    subscribeUrl,
+    portalUrl,
+}: {
+    to: string,
+    companyName: string,
+    monthlyAmount: number,
+    description?: string | null,
+    subscribeUrl: string,
+    portalUrl: string,
+}) => {
+    const resend = getResend();
+
+    const sections: EmailSection[] = [
+        { label: 'Abonament miesięczny netto', value: formatMoney(monthlyAmount) },
+    ];
+    if (description) {
+        sections.push({ label: 'Co obejmuje pakiet', value: description });
+    }
+    sections.push({
+        label: 'Jak to działa',
+        value: 'Po kliknięciu przycisku przejdziesz na bezpieczną stronę płatności Stripe. Uzupełniasz dane karty oraz dane do faktury — subskrypcja odnawia się automatycznie co miesiąc.',
+    });
+
+    const { data, error } = await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to,
+        subject: `Pakiet utrzymania dla ${companyName} — Nobelion`,
+        html: renderBrandedEmail({
+            preheader: `Aktywuj pakiet utrzymania i opieki technicznej dla ${companyName}.`,
+            eyebrow: 'Pakiet utrzymania',
+            title: `Opieka techniczna dla ${companyName}`,
+            intro: 'Przygotowaliśmy dla Ciebie pakiet utrzymania wdrożonego systemu. Płatność działa w modelu miesięcznej subskrypcji — bez zobowiązań długoterminowych, z możliwością rezygnacji w każdej chwili.',
+            sections,
+            cta: {
+                label: 'Aktywuj subskrypcję',
+                url: subscribeUrl,
+            },
+            secondaryLink: {
+                label: 'Subskrypcję możesz w każdej chwili anulować samodzielnie pod adresem:',
+                url: portalUrl,
+            },
+            note: 'Link jest indywidualny dla Twojej firmy. W razie pytań odpowiedz bezpośrednio na tę wiadomość.',
+        }),
+    });
+
+    if (error) {
+        console.error('[Email] BŁĄD Resend (link subskrypcji):', JSON.stringify(error));
+        throw new Error(`Nie udało się wysłać emaila z linkiem subskrypcji: ${error.message || JSON.stringify(error)}`);
+    }
+
+    console.log(`[Email] Wysłano link subskrypcji do ${to}, Resend id: ${data?.id}`);
+};
+
+export const sendFinalPaymentEmail = async ({
+    to,
+    companyName,
+    amount,
+    payUrl,
+}: {
+    to: string,
+    companyName: string,
+    amount: number,
+    payUrl: string,
+}) => {
+    const resend = getResend();
+
+    const { data, error } = await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to,
+        subject: `Płatność końcowa (II rata) dla ${companyName} — Nobelion`,
+        html: renderBrandedEmail({
+            preheader: `Druga rata za wdrożenie dla ${companyName} jest gotowa do opłacenia.`,
+            eyebrow: 'Płatność końcowa',
+            title: `II rata dla ${companyName}`,
+            intro: 'Pierwsza rata została zaksięgowana, a prace przebiegają zgodnie z planem. Poniżej znajdziesz link do opłacenia drugiej, końcowej raty zamówienia.',
+            sections: [
+                { label: 'Kwota II raty netto', value: formatMoney(amount) },
+                { label: 'Po płatności', value: 'Otrzymasz potwierdzenie oraz fakturę na podane dane. To zamyka rozliczenie projektu.' },
+            ],
+            cta: {
+                label: 'Opłać II ratę',
+                url: payUrl,
+            },
+            note: 'Link jest indywidualny dla Twojego zamówienia. W razie pytań odpowiedz bezpośrednio na tę wiadomość.',
+        }),
+    });
+
+    if (error) {
+        console.error('[Email] BŁĄD Resend (link II raty):', JSON.stringify(error));
+        throw new Error(`Nie udało się wysłać emaila z linkiem do II raty: ${error.message || JSON.stringify(error)}`);
+    }
+
+    console.log(`[Email] Wysłano link II raty do ${to}, Resend id: ${data?.id}`);
+};
+
+export const sendSubscriptionCanceledEmail = async ({
+    company,
+    customerEmail,
+}: {
+    company: string,
+    customerEmail: string,
+}) => {
+    const resend = getResend();
+
+    const { data, error } = await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to: getInternal(),
+        subject: `[Subskrypcja anulowana] ${company}`,
+        html: renderBrandedEmail({
+            preheader: `Klient ${company} zakończył subskrypcję utrzymania.`,
+            eyebrow: 'Subskrypcja anulowana',
+            title: company,
+            intro: 'Klient zrezygnował z pakietu utrzymania. Subskrypcja w Stripe została zakończona, status wyceny w panelu zaktualizowany.',
+            sections: [
+                { label: 'Firma', value: company },
+                { label: 'Email klienta', value: customerEmail },
+                { label: 'Następny krok', value: 'Rozważ kontakt z klientem — warto poznać powód rezygnacji.' },
+            ],
+        }),
+    });
+
+    if (error) {
+        console.error('[Email] BŁĄD Resend (anulowanie subskrypcji):', JSON.stringify(error));
+    } else {
+        console.log(`[Email] Powiadomienie o anulowaniu subskrypcji wysłane, Resend id: ${data?.id}`);
     }
 };
 
