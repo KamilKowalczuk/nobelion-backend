@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { getPayload, type Payload } from 'payload';
 import configPromise from '../../../../payload.config';
-import { issueInvoice } from '../../../../src/services/fakturaxl';
+import { issueInvoice, downloadInvoicePdf } from '../../../../src/services/fakturaxl';
 import { sendPaymentConfirmation, sendSubscriptionCanceledEmail } from '../../../../src/services/email';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -108,20 +108,7 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
     return new Response('Błąd bazy danych', { status: 500 });
   }
 
-  // Brandowane potwierdzenie płatności (faktura idzie osobno z FakturaXL).
-  if (customerEmail) {
-    try {
-      await sendPaymentConfirmation({
-        to: customerEmail,
-        orderNumber: orderDoc.orderNumber || String(orderDoc.id),
-        amount: amountTotal,
-      });
-    } catch (e) {
-      console.error('[Stripe Webhook] Błąd wysyłki potwierdzenia płatności:', e);
-    }
-  }
-
-  // Wystawienie faktury (FakturaXL sam wysyła PDF mailem do klienta).
+  // Wystawienie faktury — PDF dołączamy do brandowanego maila potwierdzenia.
   const description = isFirstTranche
     ? `Wycena Projektu - I Rata (50%)`
     : paymentModel === 'final50'
@@ -139,6 +126,25 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
     amountGross: amountTotal,
     description
   });
+
+  const invoicePdf = (invoiceResult?.success && invoiceResult.invoiceId)
+    ? await downloadInvoicePdf(invoiceResult.invoiceId)
+    : null;
+
+  // Jeden mail: potwierdzenie płatności + faktura PDF w załączniku.
+  if (customerEmail) {
+    try {
+      await sendPaymentConfirmation({
+        to: customerEmail,
+        orderNumber: orderDoc.orderNumber || String(orderDoc.id),
+        amount: amountTotal,
+        invoicePdf,
+        invoiceNumber: invoiceResult?.success ? (invoiceResult.invoiceNumber || invoiceResult.invoiceId) : null,
+      });
+    } catch (e) {
+      console.error('[Stripe Webhook] Błąd wysyłki potwierdzenia płatności:', e);
+    }
+  }
 
   if (invoiceResult?.success && invoiceResult.invoiceId) {
     try {
@@ -348,7 +354,6 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
   }
 
   // ── Faktura FakturaXL (vat=zw) za każdą płatność cykliczną ──
-  // FakturaXL sam wysyła PDF mailem do klienta.
   const invoiceResult = await issueInvoice({
     email: customerEmail,
     companyName: customerName || undefined,
@@ -360,6 +365,24 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
     amountGross: amountPaid,
     description: 'Utrzymanie i opieka techniczna — abonament miesięczny'
   });
+
+  // Brandowany mail: potwierdzenie pobrania raty + faktura PDF w załączniku.
+  if (customerEmail) {
+    const invoicePdf = (invoiceResult?.success && invoiceResult.invoiceId)
+      ? await downloadInvoicePdf(invoiceResult.invoiceId)
+      : null;
+    try {
+      await sendPaymentConfirmation({
+        to: customerEmail,
+        orderNumber: orderDoc.orderNumber || String(orderDoc.id),
+        amount: amountPaid,
+        invoicePdf,
+        invoiceNumber: invoiceResult?.success ? (invoiceResult.invoiceNumber || invoiceResult.invoiceId) : null,
+      });
+    } catch (e) {
+      console.error('[Stripe Webhook] Błąd wysyłki potwierdzenia raty subskrypcji:', e);
+    }
+  }
 
   try {
     await payload.update({

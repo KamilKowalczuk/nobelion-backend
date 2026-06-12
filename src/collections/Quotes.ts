@@ -403,6 +403,7 @@ export const Quotes: CollectionConfig = {
                 const brief: any = (typeof q.brief === 'object' && q.brief !== null) ? q.brief : {};
                 return Response.json({
                     status: q.status,
+                    paymentStatus: q.paymentStatus ?? 'unpaid',
                     totalPrice: q.totalPrice,
                     maintenancePrice: q.maintenancePrice ?? null,
                     maintenanceDescription: q.maintenanceDescription ?? null,
@@ -502,6 +503,15 @@ export const Quotes: CollectionConfig = {
                 const brief: any = quote.brief;
                 if (!quote.totalPrice || !brief || typeof brief !== 'object') {
                     return Response.json({ error: 'Brak danych do wyceny' }, { status: 400 });
+                }
+
+                // Link płatności dezaktywuje się po opłaceniu — bez tego dało się
+                // płacić wielokrotnie za to samo zamówienie.
+                if (quote.paymentStatus === 'paid_full') {
+                    return Response.json({ error: 'To zamówienie jest już w całości opłacone. Dziękujemy!' }, { status: 409 });
+                }
+                if (quote.paymentStatus === 'paid_half') {
+                    return Response.json({ error: 'I rata jest już opłacona. Link do płatności końcowej otrzymasz od nas mailem.' }, { status: 409 });
                 }
 
                 const amountToCharge = is50Percent

@@ -53,7 +53,7 @@ export const issueInvoice = async ({
   <kwota_oplacona>${amountGross.toFixed(2)}</kwota_oplacona>
   <waluta>PLN</waluta>
   <rodzaj_platnosci>Stripe</rodzaj_platnosci>
-  <wyslij_dokument_do_klienta_emailem>1</wyslij_dokument_do_klienta_emailem>
+  <wyslij_dokument_do_klienta_emailem>0</wyslij_dokument_do_klienta_emailem>
   <obliczaj_wartosc_faktury_od>1</obliczaj_wartosc_faktury_od>
 ${uwagiXml}
   <nabywca>
@@ -113,5 +113,38 @@ ${uwagiXml}
     } catch (err) {
         console.error('[FakturaXL] Wyjątek podczas wystawiania faktury:', err);
         return { success: false, error: String(err) };
+    }
+};
+
+// Pobiera PDF faktury (endpoint pdf_p.php zwraca XML z base64 w <pdf>).
+// Fakturę wysyłamy klientowi sami, brandowanym mailem z załącznikiem —
+// dlatego wyslij_dokument_do_klienta_emailem=0 przy wystawianiu.
+export const downloadInvoicePdf = async (invoiceId: string): Promise<Buffer | null> => {
+    const token = process.env.FAKTURAXL_API_TOKEN;
+    if (!token) return null;
+
+    const xmlData = `
+<dokument>
+  <api_token>${token}</api_token>
+  <dokument_id>${invoiceId}</dokument_id>
+</dokument>
+    `.trim();
+
+    try {
+        const response = await fetch('https://program.fakturaxl.pl/api/pdf_p.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/xml' },
+            body: xmlData
+        });
+        const responseText = await response.text();
+        const pdfMatch = responseText.match(/<pdf>([\s\S]*?)<\/pdf>/);
+        if (!pdfMatch || !pdfMatch[1]) {
+            console.error('[FakturaXL] Brak PDF w odpowiedzi pdf_p.php:', responseText.slice(0, 300));
+            return null;
+        }
+        return Buffer.from(pdfMatch[1].trim(), 'base64');
+    } catch (err) {
+        console.error('[FakturaXL] Wyjątek podczas pobierania PDF:', err);
+        return null;
     }
 };

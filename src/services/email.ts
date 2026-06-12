@@ -112,6 +112,7 @@ function renderBrandedEmail({ preheader, eyebrow, title, intro, sections = [], c
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;border:1px solid rgba(197,160,89,0.22);background:#101722;border-radius:28px;overflow:hidden;box-shadow:0 28px 90px rgba(0,0,0,0.42);">
                     <tr>
                         <td style="padding:34px 34px 20px;background:linear-gradient(135deg,rgba(197,160,89,0.16),rgba(255,255,255,0.02));border-bottom:1px solid rgba(232,230,223,0.08);">
+                            <img src="${getFrontendUrl()}/email-logo.png" width="56" height="56" alt="" style="display:block;width:56px;height:56px;margin-bottom:16px;border:0;" />
                             <div style="font-family:Georgia,'Times New Roman',serif;font-size:24px;letter-spacing:0.24em;color:#F7F4ED;text-transform:uppercase;">Nobelion</div>
                             <div style="margin-top:22px;font-family:'Courier New',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#C5A059;">${escapeHtml(eyebrow)}</div>
                             <h1 style="margin:14px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.16;font-weight:400;color:#F7F4ED;">${escapeHtml(title)}</h1>
@@ -356,12 +357,25 @@ export const sendPaymentConfirmation = async ({
     to,
     orderNumber,
     amount,
+    invoicePdf,
+    invoiceNumber,
 }: {
     to: string,
     orderNumber: string,
     amount: number,
+    invoicePdf?: Buffer | null,
+    invoiceNumber?: string | null,
 }) => {
     const resend = getResend();
+
+    const hasInvoice = !!invoicePdf;
+    const sections: EmailSection[] = [
+        { label: 'Numer zamówienia', value: orderNumber },
+        { label: 'Kwota', value: formatMoney(amount) },
+    ];
+    if (hasInvoice && invoiceNumber) {
+        sections.push({ label: 'Faktura', value: invoiceNumber });
+    }
 
     const { data, error } = await resend.emails.send({
         from: `Nobelion <${getFrom()}>`,
@@ -371,17 +385,23 @@ export const sendPaymentConfirmation = async ({
             preheader: 'Płatność została potwierdzona. Rozpoczynamy realizację kolejnego etapu.',
             eyebrow: 'Płatność potwierdzona',
             title: 'Zaczynamy',
-            intro: 'Dziękujemy za płatność. Zamówienie zostało potwierdzone i przechodzimy do realizacji ustalonego zakresu. Faktura zostanie wysłana w osobnej wiadomości.',
-            sections: [
-                { label: 'Numer zamówienia', value: orderNumber },
-                { label: 'Kwota', value: formatMoney(amount) },
-            ],
+            intro: hasInvoice
+                ? 'Dziękujemy za płatność. Zamówienie zostało potwierdzone i przechodzimy do realizacji ustalonego zakresu. Faktura w formacie PDF znajduje się w załączniku tej wiadomości.'
+                : 'Dziękujemy za płatność. Zamówienie zostało potwierdzone i przechodzimy do realizacji ustalonego zakresu. Faktura zostanie wysłana w osobnej wiadomości.',
+            sections,
+            note: 'W razie pytań odpowiedz bezpośrednio na tę wiadomość — to skrzynka, którą czytamy.',
         }),
+        ...(hasInvoice ? {
+            attachments: [{
+                filename: `faktura-${(invoiceNumber || orderNumber).replace(/[^\w.-]+/g, '_')}.pdf`,
+                content: invoicePdf as Buffer,
+            }]
+        } : {}),
     });
 
     if (error) {
         console.error('[Email] BŁĄD Resend (potwierdzenie płatności):', JSON.stringify(error));
     } else {
-        console.log(`[Email] Potwierdzenie płatności wysłane do ${to}, Resend id: ${data?.id}`);
+        console.log(`[Email] Potwierdzenie płatności${hasInvoice ? ' z fakturą' : ''} wysłane do ${to}, Resend id: ${data?.id}`);
     }
 };
