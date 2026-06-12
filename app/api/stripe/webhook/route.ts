@@ -34,12 +34,21 @@ async function isDuplicateEvent(payload: Payload, eventId: string): Promise<bool
 async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promise<Response> {
   const session = event.data.object as Stripe.Checkout.Session;
 
+  const briefId = session.metadata?.briefId;
+  const quoteId = session.metadata?.quoteId;
+
+  // ── Filtr własności ──
+  // Konto Stripe bywa współdzielone z innymi projektami, a webhook dostaje
+  // zdarzenia z CAŁEGO konta. Nasze sesje zawsze niosą briefId/quoteId
+  // w metadata — wszystko inne ignorujemy (żadnych zamówień ani faktur).
+  if (!briefId && !quoteId) {
+    console.log(`[Stripe Webhook] Sesja ${session.id} bez metadanych Nobelion — zdarzenie innego projektu, pomijam.`);
+    return new Response(JSON.stringify({ received: true, ignored: true }), { status: 200 });
+  }
+
   if (await isDuplicateEvent(payload, event.id)) {
     return new Response(JSON.stringify({ received: true, duplicate: true }), { status: 200 });
   }
-
-  const briefId = session.metadata?.briefId;
-  const quoteId = session.metadata?.quoteId;
   // paymentModel: '50' = I rata, 'final50' = II rata (końcowa), '100' = całość z rabatem.
   const paymentModel = session.metadata?.paymentModel;
   const isFirstTranche = paymentModel === '50';
@@ -167,8 +176,9 @@ async function handleSubscriptionActivated(payload: Payload, session: Stripe.Che
   const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
 
   if (!quoteId) {
-    console.error('[Stripe Webhook] Subskrypcja bez quoteId w metadata — pomijam.', session.id);
-    return new Response(JSON.stringify({ received: true }), { status: 200 });
+    // Subskrypcja bez naszych metadanych = inny projekt na tym samym koncie Stripe.
+    console.log(`[Stripe Webhook] Subskrypcja z sesji ${session.id} bez quoteId — zdarzenie innego projektu, pomijam.`);
+    return new Response(JSON.stringify({ received: true, ignored: true }), { status: 200 });
   }
 
   const addr = session.customer_details?.address;
@@ -243,6 +253,13 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
     }
   } catch (e) {
     console.error('[Stripe Webhook] Błąd wyszukiwania wyceny dla subskrypcji:', e);
+  }
+
+  // ── Filtr własności ── brak naszych metadanych i brak wyceny powiązanej
+  // z tą subskrypcją = płatność innego projektu na wspólnym koncie Stripe.
+  if (!metadata.quoteId && !quote) {
+    console.log(`[Stripe Webhook] Faktura subskrypcji ${subscriptionId} bez powiązania z Nobelion — zdarzenie innego projektu, pomijam.`);
+    return new Response(JSON.stringify({ received: true, ignored: true }), { status: 200 });
   }
 
   const amountPaid = (invoice.amount_paid || 0) / 100;
@@ -390,8 +407,9 @@ async function handleSubscriptionCanceled(payload: Payload, subscription: Stripe
   }
 
   if (!quote) {
-    console.error(`[Stripe Webhook] Anulowana subskrypcja ${subscription.id} bez powiązanej wyceny.`);
-    return new Response(JSON.stringify({ received: true }), { status: 200 });
+    // Brak wyceny z tym ID subskrypcji = subskrypcja innego projektu na wspólnym koncie.
+    console.log(`[Stripe Webhook] Anulowana subskrypcja ${subscription.id} bez powiązanej wyceny — pomijam.`);
+    return new Response(JSON.stringify({ received: true, ignored: true }), { status: 200 });
   }
 
   // Stripe potrafi powtórzyć zdarzenie — drugi raz nie aktualizujemy i nie mailujemy.
