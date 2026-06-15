@@ -140,6 +140,8 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
         amount: amountTotal,
         invoicePdf,
         invoiceNumber: invoiceResult?.success ? (invoiceResult.invoiceNumber || invoiceResult.invoiceId) : null,
+        // '50' | 'final50' | '100' — decyduje o treści maila.
+        kind: (paymentModel === '50' || paymentModel === 'final50') ? paymentModel : '100',
       });
     } catch (e) {
       console.error('[Stripe Webhook] Błąd wysyłki potwierdzenia płatności:', e);
@@ -377,6 +379,7 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
         amount: amountPaid,
         invoicePdf,
         invoiceNumber: invoiceResult?.success ? (invoiceResult.invoiceNumber || invoiceResult.invoiceId) : null,
+        kind: 'subscription',
       });
     } catch (e) {
       console.error('[Stripe Webhook] Błąd wysyłki potwierdzenia raty subskrypcji:', e);

@@ -298,11 +298,11 @@ export const sendFinalPaymentEmail = async ({
         html: renderBrandedEmail({
             preheader: `Druga rata za wdrożenie dla ${companyName} jest gotowa do opłacenia.`,
             eyebrow: 'Płatność końcowa',
-            title: `II rata dla ${companyName}`,
-            intro: 'Pierwsza rata została zaksięgowana, a prace przebiegają zgodnie z planem. Poniżej znajdziesz link do opłacenia drugiej, końcowej raty zamówienia.',
+            title: `Druga rata dla ${companyName}`,
+            intro: 'Prace nad Twoim projektem zostały zakończone — czas na płatność końcową. Pierwsza rata (50%) była opłacona na starcie; poniższy link finalizuje rozliczenie drugą, ostatnią ratą (pozostałe 50%).',
             sections: [
-                { label: 'Kwota II raty netto', value: formatMoney(amount) },
-                { label: 'Po płatności', value: 'Otrzymasz potwierdzenie oraz fakturę na podane dane. To zamyka rozliczenie projektu.' },
+                { label: 'Kwota II raty (pozostałe 50%)', value: formatMoney(amount) },
+                { label: 'Po płatności', value: 'Otrzymasz potwierdzenie oraz fakturę PDF. To zamyka rozliczenie i finalizuje przekazanie projektu.' },
             ],
             cta: {
                 label: 'Opłać II ratę',
@@ -353,18 +353,23 @@ export const sendSubscriptionCanceledEmail = async ({
     }
 };
 
+// Rodzaj płatności decyduje o treści maila potwierdzającego.
+type PaymentKind = '50' | 'final50' | '100' | 'subscription';
+
 export const sendPaymentConfirmation = async ({
     to,
     orderNumber,
     amount,
     invoicePdf,
     invoiceNumber,
+    kind = '100',
 }: {
     to: string,
     orderNumber: string,
     amount: number,
     invoicePdf?: Buffer | null,
     invoiceNumber?: string | null,
+    kind?: PaymentKind,
 }) => {
     const resend = getResend();
 
@@ -377,17 +382,47 @@ export const sendPaymentConfirmation = async ({
         sections.push({ label: 'Faktura', value: invoiceNumber });
     }
 
+    // Treść zależna od rodzaju płatności.
+    const variants: Record<PaymentKind, { subject: string; eyebrow: string; title: string; lead: string }> = {
+        '50': {
+            subject: 'Pierwsza rata potwierdzona — zaczynamy pracę',
+            eyebrow: 'Pierwsza rata potwierdzona',
+            title: 'Zaczynamy pracę',
+            lead: 'Dziękujemy — pierwsza rata (50%) została zaksięgowana i jest dla nas sygnałem startu. Pozostałe 50% opłacisz dopiero na zakończenie projektu, linkiem, który wyślemy Ci mailem, gdy prace będą gotowe.',
+        },
+        'final50': {
+            subject: 'Płatność końcowa potwierdzona — projekt rozliczony',
+            eyebrow: 'Płatność końcowa potwierdzona',
+            title: 'Projekt rozliczony',
+            lead: 'Dziękujemy — druga, końcowa rata została zaksięgowana, a zamówienie jest w pełni opłacone. To domyka rozliczenie projektu po obu stronach.',
+        },
+        'subscription': {
+            subject: 'Pakiet wsparcia — płatność potwierdzona',
+            eyebrow: 'Wsparcie techniczne',
+            title: 'Wsparcie aktywne',
+            lead: 'Dziękujemy — płatność za pakiet opieki technicznej została zaksięgowana. Czuwamy nad Twoim systemem. Subskrypcja odnawia się automatycznie co miesiąc; możesz ją anulować w każdej chwili linkiem z maila powitalnego.',
+        },
+        '100': {
+            subject: 'Płatność potwierdzona — zaczynamy',
+            eyebrow: 'Płatność potwierdzona',
+            title: 'Zaczynamy',
+            lead: 'Dziękujemy za płatność. Zamówienie zostało potwierdzone i przechodzimy do realizacji ustalonego zakresu.',
+        },
+    };
+    const v = variants[kind] || variants['100'];
+    const invoiceLine = hasInvoice
+        ? ' Faktura w formacie PDF znajduje się w załączniku tej wiadomości.'
+        : ' Faktura zostanie wysłana w osobnej wiadomości.';
+
     const { data, error } = await resend.emails.send({
         from: `Nobelion <${getFrom()}>`,
         to,
-        subject: 'Płatność potwierdzona — zaczynamy',
+        subject: v.subject,
         html: renderBrandedEmail({
-            preheader: 'Płatność została potwierdzona. Rozpoczynamy realizację kolejnego etapu.',
-            eyebrow: 'Płatność potwierdzona',
-            title: 'Zaczynamy',
-            intro: hasInvoice
-                ? 'Dziękujemy za płatność. Zamówienie zostało potwierdzone i przechodzimy do realizacji ustalonego zakresu. Faktura w formacie PDF znajduje się w załączniku tej wiadomości.'
-                : 'Dziękujemy za płatność. Zamówienie zostało potwierdzone i przechodzimy do realizacji ustalonego zakresu. Faktura zostanie wysłana w osobnej wiadomości.',
+            preheader: `${v.title} — płatność potwierdzona.`,
+            eyebrow: v.eyebrow,
+            title: v.title,
+            intro: v.lead + invoiceLine,
             sections,
             note: 'W razie pytań odpowiedz bezpośrednio na tę wiadomość — to skrzynka, którą czytamy.',
         }),
@@ -402,6 +437,6 @@ export const sendPaymentConfirmation = async ({
     if (error) {
         console.error('[Email] BŁĄD Resend (potwierdzenie płatności):', JSON.stringify(error));
     } else {
-        console.log(`[Email] Potwierdzenie płatności${hasInvoice ? ' z fakturą' : ''} wysłane do ${to}, Resend id: ${data?.id}`);
+        console.log(`[Email] Potwierdzenie płatności (${kind})${hasInvoice ? ' z fakturą' : ''} wysłane do ${to}, Resend id: ${data?.id}`);
     }
 };
