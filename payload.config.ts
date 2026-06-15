@@ -1,5 +1,7 @@
 import { buildConfig } from 'payload';
+import sharp from 'sharp';
 import { postgresAdapter } from '@payloadcms/db-postgres';
+import { resendAdapter } from '@payloadcms/email-resend';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import { Briefs } from './src/collections/Briefs';
 import { Orders } from './src/collections/Orders';
@@ -165,8 +167,10 @@ export default buildConfig({
                 CREATE INDEX IF NOT EXISTS "quotes_brief_idx" ON "quotes" ("brief_id");
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_sent_at" timestamp(3) with time zone;
 
+                -- quotes.brief_id jest NOT NULL, więc FK MUSI być CASCADE, nie SET NULL
+                -- (SET NULL łamał NOT NULL i blokował kasowanie briefu z wyceną).
                 DO $$ BEGIN
-                    ALTER TABLE "quotes" ADD CONSTRAINT "quotes_brief_id_briefs_id_fk" FOREIGN KEY ("brief_id") REFERENCES "public"."briefs"("id") ON DELETE SET NULL;
+                    ALTER TABLE "quotes" ADD CONSTRAINT "quotes_brief_id_briefs_id_fk" FOREIGN KEY ("brief_id") REFERENCES "public"."briefs"("id") ON DELETE CASCADE;
                 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
                 DO $$ BEGIN
@@ -264,6 +268,17 @@ export default buildConfig({
         }
     },
     secret: payloadSecret || 'dev-only-insecure-secret',
+    // Miniatury w kolekcji Media (imageSizes) wymagają sharp przekazanego wprost.
+    sharp,
+    // Maile systemowe Payloada (np. reset hasła w panelu) — przez Resend.
+    // Bez adaptera lądowały w konsoli ("No email adapter provided").
+    email: process.env.RESEND_API_KEY
+        ? resendAdapter({
+            apiKey: process.env.RESEND_API_KEY,
+            defaultFromAddress: process.env.EMAIL_FROM || 'kontakt@nobelion.pl',
+            defaultFromName: 'Nobelion',
+        })
+        : undefined,
     cors: allowedOrigins,
     csrf: allowedOrigins,
     collections: [Users, Briefs, Orders, Quotes, Media],
