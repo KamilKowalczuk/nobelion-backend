@@ -15,18 +15,28 @@ export const getCmsPublicUrl = (): string => {
 };
 
 // Wspólne pola checkoutu zbierające dane do faktury — identyczne dla płatności
-// jednorazowych i subskrypcji. NIP jako własne custom_field (NIE Stripe tax_id,
-// bo tamto wymaga prefiksu kraju "PL...").
+// jednorazowych i subskrypcji. Nazwa firmy i NIP jako własne custom_fields
+// (Stripe billing "name" to imię i nazwisko osoby, NIE nazwa firmy; tax_id
+// wymaga prefiksu kraju "PL..."). Oba opcjonalne — nabywcą bywa osoba prywatna.
 export const invoiceDataCollection = {
     billing_address_collection: 'required',
     phone_number_collection: { enabled: true },
-    custom_fields: [{
-        key: 'nip',
-        label: { type: 'custom', custom: 'NIP do faktury (firma)' },
-        type: 'text',
-        text: { minimum_length: 10, maximum_length: 15 },
-        optional: true,
-    }],
+    custom_fields: [
+        {
+            key: 'company_name',
+            label: { type: 'custom', custom: 'Nazwa firmy (do faktury)' },
+            type: 'text',
+            text: { minimum_length: 2, maximum_length: 200 },
+            optional: true,
+        },
+        {
+            key: 'nip',
+            label: { type: 'custom', custom: 'NIP do faktury (firma)' },
+            type: 'text',
+            text: { minimum_length: 10, maximum_length: 15 },
+            optional: true,
+        },
+    ],
 } satisfies Partial<Stripe.Checkout.SessionCreateParams>;
 
 export const createStripeSession = async (params: any) => {

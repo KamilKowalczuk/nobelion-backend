@@ -57,8 +57,11 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
   const customerName = session.customer_details?.name || '';
   const customerPhone = session.customer_details?.phone || '';
   const addr = session.customer_details?.address;
-  // NIP z naszego własnego custom_field (nie Stripe tax_id — tamto wymaga prefiksu kraju).
+  // Nazwa firmy i NIP z własnych custom_fields (Stripe "name" to osoba, nie firma).
   const customerNip = (session.custom_fields?.find((f) => f.key === 'nip')?.text?.value || '').trim();
+  // Nazwa firmy z dedykowanego pola (BEZ fallbacku — puste = osoba prywatna,
+  // wtedy faktura idzie na imię i nazwisko z customerName).
+  const customerCompany = (session.custom_fields?.find((f) => f.key === 'company_name')?.text?.value || '').trim();
   const amountTotal = (session.amount_total || 0) / 100;
   const currency = session.currency || 'pln';
 
@@ -77,7 +80,7 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
         customerEmail,
         billingName: customerName,
         billingPhone: customerPhone,
-        billingCompanyName: customerName,
+        billingCompanyName: customerCompany,
         billingNip: customerNip,
         billingStreet: addr?.line1 || '',
         billingCity: addr?.city || '',
@@ -117,7 +120,8 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
 
   const invoiceResult = await issueInvoice({
     email: customerEmail,
-    companyName: customerName,
+    companyName: customerCompany || undefined,
+    buyerName: customerName || undefined,
     nip: customerNip || undefined,
     street: addr?.line1 || undefined,
     postCode: addr?.postal_code || undefined,
@@ -191,6 +195,8 @@ async function handleSubscriptionActivated(payload: Payload, session: Stripe.Che
 
   const addr = session.customer_details?.address;
   const nip = (session.custom_fields?.find((f) => f.key === 'nip')?.text?.value || '').trim();
+  // Nazwa firmy z dedykowanego pola (BEZ fallbacku — puste = osoba prywatna).
+  const companyName = (session.custom_fields?.find((f) => f.key === 'company_name')?.text?.value || '').trim();
 
   try {
     await payload.update({
@@ -202,7 +208,7 @@ async function handleSubscriptionActivated(payload: Payload, session: Stripe.Che
         stripeCustomerId: customerId || '',
         clientSelectedMaintenance: true,
         subscriptionBilling: {
-          companyName: session.customer_details?.name || '',
+          companyName,
           nip,
           street: addr?.line1 || '',
           city: addr?.city || '',
@@ -304,7 +310,8 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
       const prev: any = previousOrders.docs[0];
       if (prev) {
         billing = {
-          companyName: billing.companyName || prev.billingCompanyName || prev.billingName || '',
+          // Tylko realna nazwa firmy — NIE billingName (to imię osoby).
+          companyName: billing.companyName || prev.billingCompanyName || '',
           nip: prev.billingNip || '',
           street: billing.street || prev.billingStreet || '',
           city: billing.city || prev.billingCity || '',
@@ -318,7 +325,9 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
   }
 
   const customerEmail = invoice.customer_email || '';
-  const customerName = billing.companyName || invoice.customer_name || '';
+  // Nazwa firmy (snapshot, może być pusta) vs imię i nazwisko osoby (ze Stripe).
+  const companyName = billing.companyName;
+  const personName = invoice.customer_name || '';
 
   let orderDoc;
   try {
@@ -332,9 +341,9 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
         currency: (invoice.currency || 'pln').toUpperCase(),
         status: 'paid',
         customerEmail,
-        billingName: invoice.customer_name || customerName,
+        billingName: personName,
         billingPhone: billing.phone,
-        billingCompanyName: customerName,
+        billingCompanyName: companyName,
         billingNip: billing.nip,
         billingStreet: billing.street,
         billingCity: billing.city,
@@ -357,7 +366,8 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
   // ── Faktura FakturaXL (vat=zw) za każdą płatność cykliczną ──
   const invoiceResult = await issueInvoice({
     email: customerEmail,
-    companyName: customerName || undefined,
+    companyName: companyName || undefined,
+    buyerName: personName || undefined,
     nip: billing.nip || undefined,
     street: billing.street || undefined,
     postCode: billing.postalCode || undefined,

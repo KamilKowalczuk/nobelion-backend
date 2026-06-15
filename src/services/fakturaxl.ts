@@ -1,6 +1,7 @@
 export const issueInvoice = async ({
     email,
     companyName,
+    buyerName,
     nip,
     street,
     postCode,
@@ -10,7 +11,8 @@ export const issueInvoice = async ({
     description
 }: {
     email: string;
-    companyName?: string;
+    companyName?: string;   // nazwa firmy — decyduje o typie nabywcy
+    buyerName?: string;     // imię i nazwisko osoby (gdy brak firmy)
     nip?: string;
     street?: string;
     postCode?: string;
@@ -28,8 +30,9 @@ export const issueInvoice = async ({
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Typ nabywcy: 0 - firma, 1 - osoba prywatna. Firma = jest NIP.
-    const isCompany = !!(nip && nip.trim());
+    // Typ nabywcy decyduje obecność NAZWY FIRMY: jest firma → faktura na firmę
+    // (nazwa + NIP), brak → osoba prywatna (imię i nazwisko z buyerName).
+    const isCompany = !!(companyName && companyName.trim());
 
     // ── Zwolnienie z VAT ──
     // Firma korzysta ze zwolnienia podmiotowego — stawka 'zw', brak naliczonego VAT.
@@ -46,18 +49,18 @@ export const issueInvoice = async ({
     // CDATA przenosi tekst dosłownie — nie escape'ujemy, jedynie neutralizujemy sekwencję "]]>".
     const cdata = (v?: string) => `<![CDATA[${(v || '').replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
 
-    // Osoba prywatna wymaga imienia i nazwiska (kod 38/39); firma — pola nazwa.
-    const [firstName, ...rest] = (companyName || '').trim().split(/\s+/);
+    // Osoba prywatna wymaga imienia i nazwiska (kod 38/39) — bierzemy z buyerName.
+    const [firstName, ...rest] = (buyerName || '').trim().split(/\s+/);
     const lastName = rest.join(' ');
 
     const uwagiXml = isVatExempt ? `  <uwagi>${cdata(exemptionBasis)}</uwagi>\n` : '';
 
     const nabywcaXml = isCompany
         ? `    <firma_lub_osoba_prywatna>0</firma_lub_osoba_prywatna>
-    <nazwa>${cdata(companyName || 'Klient')}</nazwa>
+    <nazwa>${cdata(companyName)}</nazwa>
     <nip>${(nip || '').replace(/[^0-9A-Za-z]/g, '')}</nip>`
         : `    <firma_lub_osoba_prywatna>1</firma_lub_osoba_prywatna>
-    <nazwa>${cdata(companyName || 'Klient detaliczny')}</nazwa>
+    <nazwa>${cdata(buyerName || 'Klient detaliczny')}</nazwa>
     <imie>${cdata(firstName || 'Klient')}</imie>
     <nazwisko>${cdata(lastName || 'detaliczny')}</nazwisko>`;
 
