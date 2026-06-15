@@ -59,7 +59,6 @@ export const Orders: CollectionConfig = {
             label: 'Historia płatności',
             labels: { singular: 'Płatność', plural: 'Płatności' },
             fields: [
-                { name: 'stripeInvoiceId', type: 'text', label: 'Stripe Invoice ID' },
                 { name: 'amount', type: 'number', label: 'Kwota' },
                 { name: 'paidAt', type: 'date', label: 'Data płatności' },
                 {

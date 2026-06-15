@@ -19,7 +19,8 @@ export const issueInvoice = async ({
     amountGross: number;
     description: string;
 }) => {
-    const token = process.env.FAKTURAXL_API_TOKEN;
+    // Trim — biały znak/nowa linia w tokenie z env powoduje "kod 3 = nie istnieje taki api_token".
+    const token = (process.env.FAKTURAXL_API_TOKEN || '').trim();
     if (!token) {
         console.warn('Brak tokenu FAKTURAXL_API_TOKEN. Pominięto wystawienie faktury.');
         return null;
@@ -27,8 +28,8 @@ export const issueInvoice = async ({
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Typ nabywcy: 0 - firma, 1 - osoba prywatna
-    const isCompany = !!nip;
+    // Typ nabywcy: 0 - firma, 1 - osoba prywatna. Firma = jest NIP.
+    const isCompany = !!(nip && nip.trim());
 
     // ── Zwolnienie z VAT ──
     // Firma korzysta ze zwolnienia podmiotowego — stawka 'zw', brak naliczonego VAT.
@@ -38,38 +39,52 @@ export const issueInvoice = async ({
     const exemptionBasis = process.env.FAKTURAXL_VAT_EXEMPTION_BASIS
         || 'Zwolnienie podmiotowe z VAT na podstawie art. 113 ust. 1 ustawy o VAT.';
 
-    const escapeXml = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // "Stripe" NIE jest dozwoloną wartością rodzaj_platnosci (→ kod 18). Lista dopuszczalnych:
+    // Przelew, Karta płatnicza, BLIK, Płatność elektroniczna, Przelewy24, PayU... Domyślnie elektroniczna.
+    const paymentMethod = process.env.FAKTURAXL_PAYMENT_METHOD || 'Płatność elektroniczna';
 
-    const uwagiXml = isVatExempt ? `  <uwagi><![CDATA[${exemptionBasis}]]></uwagi>` : '';
+    // CDATA przenosi tekst dosłownie — nie escape'ujemy, jedynie neutralizujemy sekwencję "]]>".
+    const cdata = (v?: string) => `<![CDATA[${(v || '').replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
+
+    // Osoba prywatna wymaga imienia i nazwiska (kod 38/39); firma — pola nazwa.
+    const [firstName, ...rest] = (companyName || '').trim().split(/\s+/);
+    const lastName = rest.join(' ');
+
+    const uwagiXml = isVatExempt ? `  <uwagi>${cdata(exemptionBasis)}</uwagi>\n` : '';
+
+    const nabywcaXml = isCompany
+        ? `    <firma_lub_osoba_prywatna>0</firma_lub_osoba_prywatna>
+    <nazwa>${cdata(companyName || 'Klient')}</nazwa>
+    <nip>${(nip || '').replace(/[^0-9A-Za-z]/g, '')}</nip>`
+        : `    <firma_lub_osoba_prywatna>1</firma_lub_osoba_prywatna>
+    <nazwa>${cdata(companyName || 'Klient detaliczny')}</nazwa>
+    <imie>${cdata(firstName || 'Klient')}</imie>
+    <nazwisko>${cdata(lastName || 'detaliczny')}</nazwisko>`;
 
     const xmlData = `
 <dokument>
   <api_token>${token}</api_token>
   <typ_faktury>0</typ_faktury>
-  <obliczaj_sume_wartosci_faktury_wg>1</obliczaj_sume_wartosci_faktury_wg>
   <data_wystawienia>${today}</data_wystawienia>
   <data_sprzedazy>${today}</data_sprzedazy>
   <termin_platnosci_data>${today}</termin_platnosci_data>
   <kwota_oplacona>${amountGross.toFixed(2)}</kwota_oplacona>
   <waluta>PLN</waluta>
-  <rodzaj_platnosci>Stripe</rodzaj_platnosci>
+  <rodzaj_platnosci>${paymentMethod}</rodzaj_platnosci>
   <wyslij_dokument_do_klienta_emailem>0</wyslij_dokument_do_klienta_emailem>
   <obliczaj_wartosc_faktury_od>1</obliczaj_wartosc_faktury_od>
-${uwagiXml}
-  <nabywca>
-    <firma_lub_osoba_prywatna>${isCompany ? '0' : '1'}</firma_lub_osoba_prywatna>
-    <nazwa><![CDATA[${companyName || 'Klient detaliczny'}]]></nazwa>
-    <nip>${nip || ''}</nip>
-    <adres><![CDATA[${street ? escapeXml(street) : ''}]]></adres>
-    <kod_pocztowy>${postCode ? escapeXml(postCode) : ''}</kod_pocztowy>
-    <miasto><![CDATA[${city ? escapeXml(city) : ''}]]></miasto>
+${uwagiXml}  <nabywca>
+${nabywcaXml}
+    <ulica_i_numer>${cdata(street)}</ulica_i_numer>
+    <kod_pocztowy>${cdata(postCode)}</kod_pocztowy>
+    <miejscowosc>${cdata(city)}</miejscowosc>
     <kraj>PL</kraj>
-    <email>${escapeXml(email)}</email>
-    <telefon>${phone ? escapeXml(phone) : ''}</telefon>
+    <email>${cdata(email)}</email>
+    <telefon>${cdata(phone)}</telefon>
   </nabywca>
   <faktura_pozycje>
-    <nazwa><![CDATA[${escapeXml(description)}]]></nazwa>
-    <ilosc>1</ilosc>
+    <nazwa>${cdata(description)}</nazwa>
+    <ilosc>1.000</ilosc>
     <jm>usł.</jm>
     <vat>${vatRate}</vat>
     <wartosc_brutto>${amountGross.toFixed(2)}</wartosc_brutto>
@@ -103,7 +118,23 @@ ${uwagiXml}
                 rawResponse: responseText
             };
         } else {
-            console.error('[FakturaXL] Błąd wystawiania:', responseText);
+            // Mapa najczęstszych kodów błędów (z dokumentacji FakturaXL).
+            const ERRORS: Record<string, string> = {
+                '2': 'Przekroczono limit zapytań — spróbuj później',
+                '3': 'Nieprawidłowy api_token (sprawdź FAKTURAXL_API_TOKEN — bez spacji/nowej linii, z właściwego konta)',
+                '8': 'Nie istnieje taki id_dzialy_firmy',
+                '9': 'Nazwa nabywcy nie może być pusta',
+                '10': 'Nieprawidłowy NIP',
+                '11': 'Błędny kraj',
+                '13': 'Data musi mieć format yyyy-mm-dd',
+                '18': 'Błędny rodzaj_platnosci (ustaw dozwoloną wartość, np. „Płatność elektroniczna")',
+                '19': 'Limit darmowych faktur osiągnięty — wymagany Pakiet Pełny',
+                '38': 'Imię nabywcy nie może być puste (osoba prywatna)',
+                '39': 'Nazwisko nabywcy nie może być puste (osoba prywatna)',
+                '70': 'Klucz API został zablokowany — kontakt z FakturaXL',
+            };
+            const hint = kod && ERRORS[kod] ? ` → ${ERRORS[kod]}` : '';
+            console.error(`[FakturaXL] Błąd wystawiania (kod ${kod})${hint}:`, responseText);
             return {
                 success: false,
                 error: responseText

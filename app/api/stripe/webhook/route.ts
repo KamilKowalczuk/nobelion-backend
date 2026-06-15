@@ -339,7 +339,6 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
         billingPostalCode: billing.postalCode,
         payments: [
           {
-            stripeInvoiceId: invoice.id,
             amount: amountPaid,
             paidAt: new Date().toISOString(),
             status: 'paid'
@@ -391,7 +390,6 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
       data: {
         payments: [
           {
-            stripeInvoiceId: invoice.id,
             amount: amountPaid,
             paidAt: new Date().toISOString(),
             status: 'paid',

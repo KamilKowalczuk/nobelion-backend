@@ -249,7 +249,6 @@ export interface Order {
   billingCountry?: string | null;
   payments?:
     | {
-        stripeInvoiceId?: string | null;
         amount?: number | null;
         paidAt?: string | null;
         status?: ('paid' | 'failed') | null;
@@ -510,7 +509,6 @@ export interface OrdersSelect<T extends boolean = true> {
   payments?:
     | T
     | {
-        stripeInvoiceId?: T;
         amount?: T;
         paidAt?: T;
         status?: T;
