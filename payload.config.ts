@@ -8,6 +8,7 @@ import { Orders } from './src/collections/Orders';
 import { Users } from './src/collections/Users';
 import { Quotes } from './src/collections/Quotes';
 import { Media } from './src/collections/Media';
+import { Documents } from './src/collections/Documents';
 
 // Origins produkcyjne zawsze; localhost tylko poza produkcją (dev).
 const isProd = process.env.NODE_ENV === 'production';
@@ -261,6 +262,35 @@ export default buildConfig({
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "subscription_billing_phone" varchar;
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "action_send_final_payment" boolean;
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "final_payment_sent_at" timestamp(3) with time zone;
+
+                -- Ślad audytowy akceptacji dokumentów (clickwrap) na wycenie.
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_accepted_at" timestamp(3) with time zone;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_ip" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_email" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_documents" jsonb;
+
+                -- Kolekcja dokumentów prawnych.
+                DO $$ BEGIN
+                    CREATE TYPE "public"."enum_documents_doc_type" AS ENUM('umowa-wspolpracy', 'regulamin', 'polityka-prywatnosci', 'rodo');
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+                CREATE TABLE IF NOT EXISTS "documents" (
+                    "id" serial PRIMARY KEY,
+                    "doc_type" "enum_documents_doc_type" NOT NULL,
+                    "title" varchar NOT NULL,
+                    "content" varchar NOT NULL,
+                    "version" varchar,
+                    "content_hash" varchar,
+                    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+                    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS "documents_doc_type_idx" ON "documents" ("doc_type");
+
+                DO $$ BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'payload_locked_documents_rels') THEN
+                        ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "documents_id" integer;
+                    END IF;
+                END $$;
             `);
             console.log('[Nobelion CMS] Nowe tabele dla wycen (timeline, scope) gotowe.');
         } catch (err) {
@@ -281,7 +311,7 @@ export default buildConfig({
         : undefined,
     cors: allowedOrigins,
     csrf: allowedOrigins,
-    collections: [Users, Briefs, Orders, Quotes, Media],
+    collections: [Users, Briefs, Orders, Quotes, Media, Documents],
     db: postgresAdapter({
         pool: {
             connectionString: process.env.DATABASE_URI

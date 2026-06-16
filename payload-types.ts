@@ -72,6 +72,7 @@ export interface Config {
     orders: Order;
     quotes: Quote;
     media: Media;
+    documents: Document;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -84,6 +85,7 @@ export interface Config {
     orders: OrdersSelect<false> | OrdersSelect<true>;
     quotes: QuotesSelect<false> | QuotesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    documents: DocumentsSelect<false> | DocumentsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -331,12 +333,57 @@ export interface Quote {
     postalCode?: string | null;
     phone?: string | null;
   };
+  /**
+   * Zapisywane automatycznie przy pierwszej płatności. Tylko do odczytu.
+   */
+  consent?: {
+    acceptedAt?: string | null;
+    ip?: string | null;
+    email?: string | null;
+    documents?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+  };
   quoteSentAt?: string | null;
   subscriptionSentAt?: string | null;
   finalPaymentSentAt?: string | null;
   actionSendQuote?: boolean | null;
   actionSendSubscription?: boolean | null;
   actionSendFinalPayment?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Dokumenty prawne pokazywane klientom. Edycja treści automatycznie podbija wersję i hash.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "documents".
+ */
+export interface Document {
+  id: number;
+  /**
+   * Jeden dokument na rodzaj (unikalny).
+   */
+  docType: 'umowa-wspolpracy' | 'regulamin' | 'polityka-prywatnosci' | 'rodo';
+  title: string;
+  /**
+   * Markdown: **pogrubienie**, ## nagłówek, - lista, [link](https://...). Pusta linia = nowy akapit.
+   */
+  content: string;
+  /**
+   * Auto: rośnie przy każdej zmianie treści.
+   */
+  version?: string | null;
+  /**
+   * Odcisk treści — dowód, na jaką wersję zgodził się klient.
+   */
+  contentHash?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -383,6 +430,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'documents';
+        value: number | Document;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -550,6 +601,14 @@ export interface QuotesSelect<T extends boolean = true> {
         postalCode?: T;
         phone?: T;
       };
+  consent?:
+    | T
+    | {
+        acceptedAt?: T;
+        ip?: T;
+        email?: T;
+        documents?: T;
+      };
   quoteSentAt?: T;
   subscriptionSentAt?: T;
   finalPaymentSentAt?: T;
@@ -590,6 +649,19 @@ export interface MediaSelect<T extends boolean = true> {
               filename?: T;
             };
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "documents_select".
+ */
+export interface DocumentsSelect<T extends boolean = true> {
+  docType?: T;
+  title?: T;
+  content?: T;
+  version?: T;
+  contentHash?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

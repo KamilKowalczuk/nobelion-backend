@@ -250,6 +250,31 @@ export const Quotes: CollectionConfig = {
                     ]
                 },
 
+                // ── ZGODY (ślad audytowy clickwrap) ──────────────────
+                {
+                    label: '📜 Zgody',
+                    description: 'Dowód akceptacji dokumentów przez klienta w momencie płatności.',
+                    fields: [
+                        {
+                            name: 'consent',
+                            type: 'group',
+                            label: 'Akceptacja dokumentów',
+                            admin: { description: 'Zapisywane automatycznie przy pierwszej płatności. Tylko do odczytu.' },
+                            fields: [
+                                {
+                                    type: 'row',
+                                    fields: [
+                                        { name: 'acceptedAt', type: 'date', label: 'Data akceptacji', admin: { readOnly: true, width: '50%' } },
+                                        { name: 'ip', type: 'text', label: 'Adres IP', admin: { readOnly: true, width: '50%' } },
+                                    ]
+                                },
+                                { name: 'email', type: 'text', label: 'E-mail akceptującego', admin: { readOnly: true } },
+                                { name: 'documents', type: 'json', label: 'Zaakceptowane dokumenty (typ + wersja + hash)', admin: { readOnly: true } },
+                            ]
+                        }
+                    ]
+                },
+
                 // ── AKCJE ─────────────────────────────────────────────
                 {
                     label: '⚡ Akcje i Logi',
@@ -512,6 +537,40 @@ export const Quotes: CollectionConfig = {
                 }
                 if (quote.paymentStatus === 'paid_half') {
                     return Response.json({ error: 'I rata jest już opłacona. Link do płatności końcowej otrzymasz od nas mailem.' }, { status: 409 });
+                }
+
+                // ── Clickwrap: wymagana akceptacja dokumentów + oświadczenie odstąpienia ──
+                // (Tylko przy pierwszej płatności; jeśli zgoda już zapisana — nie wymagamy ponownie.)
+                if (!quote.consent?.acceptedAt) {
+                    if (body.acceptDocuments !== true || body.acceptWithdrawal !== true) {
+                        return Response.json({ error: 'Aby kontynuować, zaakceptuj umowę współpracy, regulamin, politykę prywatności oraz oświadczenie o rozpoczęciu prac.' }, { status: 400 });
+                    }
+                    try {
+                        const docsRes = await req.payload.find({ collection: 'documents', limit: 20, depth: 0 });
+                        const acceptedDocs = docsRes.docs
+                            .filter((d: any) => ['umowa-wspolpracy', 'regulamin', 'polityka-prywatnosci'].includes(d.docType))
+                            .map((d: any) => ({ docType: d.docType, version: d.version || '1', contentHash: d.contentHash || '' }));
+                        const hdrs = req.headers as Headers;
+                        const ip = hdrs.get('cf-connecting-ip')
+                            || (hdrs.get('x-forwarded-for') || '').split(',')[0].trim()
+                            || hdrs.get('x-real-ip')
+                            || '';
+                        await req.payload.update({
+                            collection: 'quotes',
+                            id: quote.id,
+                            data: {
+                                consent: {
+                                    acceptedAt: new Date().toISOString(),
+                                    ip,
+                                    email: brief.clientEmail || '',
+                                    documents: { acceptedWithdrawal: true, items: acceptedDocs },
+                                }
+                            }
+                        });
+                    } catch (e: any) {
+                        console.error('[Quotes checkout] Błąd zapisu zgód:', e?.message || e);
+                        return Response.json({ error: 'Nie udało się zapisać akceptacji. Spróbuj ponownie.' }, { status: 500 });
+                    }
                 }
 
                 const amountToCharge = is50Percent
