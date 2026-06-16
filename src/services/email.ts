@@ -347,14 +347,130 @@ export const sendSubscriptionCanceledEmail = async ({
     });
 
     if (error) {
-        console.error('[Email] BŁĄD Resend (anulowanie subskrypcji):', JSON.stringify(error));
+        console.error('[Email] BŁĄD Resend (anulowanie subskrypcji — wewn.):', JSON.stringify(error));
     } else {
-        console.log(`[Email] Powiadomienie o anulowaniu subskrypcji wysłane, Resend id: ${data?.id}`);
+        console.log(`[Email] Powiadomienie wewnętrzne o anulowaniu subskrypcji wysłane, Resend id: ${data?.id}`);
+    }
+};
+
+// Wspólny builder maili subskrypcyjnych do klienta (z fakturą PDF + linkiem anulowania).
+type SubscriptionMailInput = {
+    to: string,
+    amount: number,
+    orderNumber: string,
+    invoicePdf?: Buffer | null,
+    invoiceNumber?: string | null,
+    portalUrl?: string,
+};
+
+async function sendSubscriptionClientMail(
+    input: SubscriptionMailInput,
+    copy: { subject: string; eyebrow: string; title: string; lead: string; firstLabel: string },
+    logTag: string,
+) {
+    const resend = getResend();
+    const hasInvoice = !!input.invoicePdf;
+
+    const sections: EmailSection[] = [
+        { label: copy.firstLabel, value: formatMoney(input.amount) },
+        { label: 'Numer zamówienia', value: input.orderNumber },
+    ];
+    if (hasInvoice && input.invoiceNumber) {
+        sections.push({ label: 'Faktura', value: input.invoiceNumber });
+    }
+
+    const invoiceLine = hasInvoice
+        ? ' Faktura w formacie PDF znajduje się w załączniku tej wiadomości.'
+        : ' Faktura dotrze w osobnej wiadomości.';
+
+    const { data, error } = await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to: input.to,
+        subject: copy.subject,
+        html: renderBrandedEmail({
+            preheader: `${copy.title} — opieka techniczna Nobelion.`,
+            eyebrow: copy.eyebrow,
+            title: copy.title,
+            intro: copy.lead + invoiceLine,
+            sections,
+            ...(input.portalUrl ? {
+                secondaryLink: {
+                    label: 'Subskrypcję możesz w każdej chwili anulować samodzielnie pod adresem:',
+                    url: input.portalUrl,
+                },
+            } : {}),
+            note: 'W razie pytań odpowiedz bezpośrednio na tę wiadomość — to skrzynka, którą czytamy.',
+        }),
+        ...(hasInvoice ? {
+            attachments: [{
+                filename: `faktura-${(input.invoiceNumber || input.orderNumber).replace(/[^\w.-]+/g, '_')}.pdf`,
+                content: input.invoicePdf as Buffer,
+            }]
+        } : {}),
+    });
+
+    if (error) {
+        console.error(`[Email] BŁĄD Resend (${logTag}):`, JSON.stringify(error));
+    } else {
+        console.log(`[Email] ${logTag}${hasInvoice ? ' z fakturą' : ''} wysłane do ${input.to}, Resend id: ${data?.id}`);
+    }
+}
+
+// Pierwsza płatność — aktywacja pakietu wsparcia.
+export const sendSubscriptionActivatedEmail = (input: SubscriptionMailInput) =>
+    sendSubscriptionClientMail(input, {
+        subject: 'Pakiet wsparcia aktywny — Nobelion',
+        eyebrow: 'Wsparcie techniczne',
+        title: 'Wsparcie aktywne',
+        lead: 'Dziękujemy — Twój pakiet opieki technicznej jest aktywny i od teraz czuwamy nad działaniem systemu. Płatność odnawia się automatycznie co miesiąc; nie musisz o niczym pamiętać.',
+        firstLabel: 'Abonament miesięczny',
+    }, 'Potwierdzenie aktywacji subskrypcji');
+
+// Kolejne miesiące — kontynuacja (inny ton niż aktywacja).
+export const sendSubscriptionRenewedEmail = (input: SubscriptionMailInput) =>
+    sendSubscriptionClientMail(input, {
+        subject: 'Opieka techniczna — kolejny miesiąc opłacony',
+        eyebrow: 'Wsparcie techniczne',
+        title: 'Kolejny miesiąc opieki',
+        lead: 'Dziękujemy — kolejna miesięczna rata za opiekę techniczną została pobrana, a Twój system pozostaje pod naszą opieką. Nic nie musisz robić; ta wiadomość to potwierdzenie i faktura za bieżący okres.',
+        firstLabel: 'Pobrana rata miesięczna',
+    }, 'Potwierdzenie kontynuacji subskrypcji');
+
+// Zakończenie — mail do KLIENTA po anulowaniu (osobno od powiadomienia wewnętrznego).
+export const sendSubscriptionEndedEmail = async ({
+    to,
+    companyName,
+}: {
+    to: string,
+    companyName?: string,
+}) => {
+    const resend = getResend();
+    const { data, error } = await resend.emails.send({
+        from: `Nobelion <${getFrom()}>`,
+        to,
+        subject: 'Subskrypcja wsparcia zakończona — Nobelion',
+        html: renderBrandedEmail({
+            preheader: 'Twoja subskrypcja opieki technicznej została zakończona.',
+            eyebrow: 'Subskrypcja zakończona',
+            title: 'Wsparcie wyłączone',
+            intro: `Potwierdzamy zakończenie subskrypcji opieki technicznej${companyName ? ` dla ${companyName}` : ''}. Nie pobierzemy już żadnych kolejnych płatności — rozliczenie jest zamknięte. Dziękujemy za czas, przez który mogliśmy dbać o Twój system.`,
+            sections: [
+                { label: 'Status', value: 'Subskrypcja zakończona — brak dalszych obciążeń' },
+                { label: 'Powrót', value: 'Gdybyś chciał wznowić opiekę w przyszłości — wystarczy, że napiszesz. Przygotujemy nowy pakiet.' },
+            ],
+            note: 'Masz pytania albo chcesz wrócić? Odpowiedz na tę wiadomość lub napisz na kontakt@nobelion.pl.',
+        }),
+    });
+
+    if (error) {
+        console.error('[Email] BŁĄD Resend (zakończenie subskrypcji — klient):', JSON.stringify(error));
+    } else {
+        console.log(`[Email] Mail o zakończeniu subskrypcji wysłany do klienta ${to}, Resend id: ${data?.id}`);
     }
 };
 
 // Rodzaj płatności decyduje o treści maila potwierdzającego.
-type PaymentKind = '50' | 'final50' | '100' | 'subscription';
+type PaymentKind = '50' | 'final50' | '100';
 
 export const sendPaymentConfirmation = async ({
     to,
@@ -395,12 +511,6 @@ export const sendPaymentConfirmation = async ({
             eyebrow: 'Płatność końcowa potwierdzona',
             title: 'Projekt rozliczony',
             lead: 'Dziękujemy — druga, końcowa rata została zaksięgowana, a zamówienie jest w pełni opłacone. To domyka rozliczenie projektu po obu stronach.',
-        },
-        'subscription': {
-            subject: 'Pakiet wsparcia — płatność potwierdzona',
-            eyebrow: 'Wsparcie techniczne',
-            title: 'Wsparcie aktywne',
-            lead: 'Dziękujemy — płatność za pakiet opieki technicznej została zaksięgowana. Czuwamy nad Twoim systemem. Subskrypcja odnawia się automatycznie co miesiąc; możesz ją anulować w każdej chwili linkiem z maila powitalnego.',
         },
         '100': {
             subject: 'Płatność potwierdzona — zaczynamy',

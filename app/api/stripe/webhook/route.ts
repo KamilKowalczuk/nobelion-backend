@@ -3,7 +3,22 @@ import Stripe from 'stripe';
 import { getPayload, type Payload } from 'payload';
 import configPromise from '../../../../payload.config';
 import { issueInvoice, downloadInvoicePdf } from '../../../../src/services/fakturaxl';
-import { sendPaymentConfirmation, sendSubscriptionCanceledEmail } from '../../../../src/services/email';
+import {
+  sendPaymentConfirmation,
+  sendSubscriptionCanceledEmail,
+  sendSubscriptionActivatedEmail,
+  sendSubscriptionRenewedEmail,
+  sendSubscriptionEndedEmail,
+} from '../../../../src/services/email';
+import { getCmsPublicUrl } from '../../../../src/services/briefs';
+
+// Faktura FakturaXL → pobranie PDF → zwraca dane do dołączenia w mailu.
+async function issueInvoiceWithPdf(input: Parameters<typeof issueInvoice>[0]) {
+  const result = await issueInvoice(input);
+  const pdf = (result?.success && result.invoiceId) ? await downloadInvoicePdf(result.invoiceId) : null;
+  const number = result?.success ? (result.invoiceNumber || result.invoiceId) : null;
+  return { result, pdf, number };
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2026-04-22.dahlia',
@@ -178,12 +193,15 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
 }
 
 // ── Aktywacja subskrypcji (checkout mode=subscription) ──────────────────────
-// Zamówienia NIE tworzymy tutaj — każdą płatność (w tym pierwszą) rejestruje
-// zdarzenie invoice.paid, więc Order powstaje dokładnie raz na płatność.
-// Zapisujemy za to snapshot danych do faktury (NIP, adres) z checkoutu —
-// kolejne odnowienia subskrypcji nie niosą już tych danych.
-async function handleSubscriptionActivated(payload: Payload, session: Stripe.Checkout.Session): Promise<Response> {
+// Pierwsza płatność jest obsługiwana TUTAJ (checkout.session.completed niesie
+// pewne metadane quoteId + dane rozliczeniowe). Tworzymy Order, wystawiamy
+// fakturę i wysyłamy mail aktywacyjny. Odnowienia obsługuje invoice.paid
+// (subscription_cycle) — pierwsza faktura (subscription_create) jest tam pomijana,
+// żeby nie zdublować pierwszej płatności.
+async function handleSubscriptionActivated(payload: Payload, event: Stripe.Event): Promise<Response> {
+  const session = event.data.object as Stripe.Checkout.Session;
   const quoteId = session.metadata?.quoteId;
+  const briefId = session.metadata?.briefId;
   const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
   const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
 
@@ -193,13 +211,22 @@ async function handleSubscriptionActivated(payload: Payload, session: Stripe.Che
     return new Response(JSON.stringify({ received: true, ignored: true }), { status: 200 });
   }
 
+  if (await isDuplicateEvent(payload, event.id)) {
+    return new Response(JSON.stringify({ received: true, duplicate: true }), { status: 200 });
+  }
+
   const addr = session.customer_details?.address;
   const nip = (session.custom_fields?.find((f) => f.key === 'nip')?.text?.value || '').trim();
   // Nazwa firmy z dedykowanego pola (BEZ fallbacku — puste = osoba prywatna).
   const companyName = (session.custom_fields?.find((f) => f.key === 'company_name')?.text?.value || '').trim();
+  const buyerName = session.customer_details?.name || '';
+  const customerEmail = session.customer_details?.email || session.customer_email || '';
+  const phone = session.customer_details?.phone || '';
+  const amountPaid = (session.amount_total || 0) / 100;
 
+  let quoteToken = '';
   try {
-    await payload.update({
+    const updated = await payload.update({
       collection: 'quotes',
       id: parseInt(quoteId, 10),
       data: {
@@ -213,17 +240,101 @@ async function handleSubscriptionActivated(payload: Payload, session: Stripe.Che
           street: addr?.line1 || '',
           city: addr?.city || '',
           postalCode: addr?.postal_code || '',
-          phone: session.customer_details?.phone || '',
+          phone,
         },
       }
     });
+    quoteToken = (updated as any)?.quoteToken || '';
     console.log(`[Stripe Webhook] Subskrypcja aktywna dla Wyceny ${quoteId} (${subscriptionId}).`);
   } catch (e) {
     console.error('[Stripe Webhook] Błąd aktywacji subskrypcji w Wycenie:', e);
     return new Response('Błąd bazy danych', { status: 500 });
   }
 
+  // Order za pierwszą płatność.
+  let orderDoc;
+  try {
+    orderDoc = await payload.create({
+      collection: 'orders',
+      data: {
+        briefId: briefId ? parseInt(briefId, 10) : undefined,
+        stripeEventId: event.id,
+        stripeSessionId: subscriptionId || session.id,
+        amount: amountPaid,
+        currency: (session.currency || 'pln').toUpperCase(),
+        status: 'paid',
+        customerEmail,
+        billingName: buyerName,
+        billingPhone: phone,
+        billingCompanyName: companyName,
+        billingNip: nip,
+        billingStreet: addr?.line1 || '',
+        billingCity: addr?.city || '',
+        billingPostalCode: addr?.postal_code || '',
+        payments: [{ amount: amountPaid, paidAt: new Date().toISOString(), status: 'paid' }],
+      }
+    });
+  } catch (e) {
+    console.error('[Stripe Webhook] Błąd tworzenia Order dla aktywacji subskrypcji:', e);
+    return new Response('Błąd bazy danych', { status: 500 });
+  }
+
+  // Faktura FakturaXL (vat=zw) + PDF.
+  const { result: invoiceResult, pdf: invoicePdf, number: invoiceNumber } = await issueInvoiceWithPdf({
+    email: customerEmail,
+    companyName: companyName || undefined,
+    buyerName: buyerName || undefined,
+    nip: nip || undefined,
+    street: addr?.line1 || undefined,
+    postCode: addr?.postal_code || undefined,
+    city: addr?.city || undefined,
+    phone: phone || undefined,
+    amountGross: amountPaid,
+    description: 'Utrzymanie i opieka techniczna — abonament miesięczny (aktywacja)',
+  });
+  await attachInvoiceToOrder(payload, orderDoc.id, amountPaid, invoiceResult, invoiceNumber);
+
+  // Mail aktywacyjny (inny niż kontynuacja) + faktura w załączniku.
+  if (customerEmail) {
+    try {
+      await sendSubscriptionActivatedEmail({
+        to: customerEmail,
+        amount: amountPaid,
+        orderNumber: orderDoc.orderNumber || String(orderDoc.id),
+        invoicePdf,
+        invoiceNumber,
+        portalUrl: quoteToken ? `${getCmsPublicUrl()}/api/quotes/subscription-portal/${quoteToken}` : undefined,
+      });
+    } catch (e) {
+      console.error('[Stripe Webhook] Błąd wysyłki maila aktywacji subskrypcji:', e);
+    }
+  }
+
   return new Response(JSON.stringify({ received: true }), { status: 200 });
+}
+
+// Dopisuje nr faktury FakturaXL do płatności w Order (lub status error).
+async function attachInvoiceToOrder(payload: Payload, orderId: any, amount: number, invoiceResult: any, invoiceNumber: any) {
+  try {
+    await payload.update({
+      collection: 'orders',
+      id: orderId,
+      data: {
+        payments: [{
+          amount,
+          paidAt: new Date().toISOString(),
+          status: 'paid',
+          fakturaXlInvoiceId: invoiceResult?.success ? invoiceNumber : undefined,
+          invoiceStatus: invoiceResult?.success ? 'sent' : 'error',
+        }]
+      }
+    });
+  } catch (e) {
+    console.error('[Stripe Webhook] Błąd aktualizacji faktury w Order:', e);
+  }
+  if (!invoiceResult?.success) {
+    console.error(`[Stripe Webhook] Faktura NIE została wystawiona (Order ${orderId}).`);
+  }
 }
 
 // Stripe od wersji Basil przenosi dane subskrypcji na invoice.parent — czytamy oba kształty.
@@ -244,6 +355,13 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
   // Interesują nas wyłącznie faktury subskrypcyjne.
   if (!subscriptionId) {
     return new Response(JSON.stringify({ received: true, ignored: true }), { status: 200 });
+  }
+
+  // Pierwszą fakturę (subscription_create) obsługuje już handleSubscriptionActivated
+  // — tu reagujemy tylko na ODNOWIENIA, żeby nie zdublować pierwszej płatności.
+  if ((invoice as any).billing_reason === 'subscription_create') {
+    console.log(`[Stripe Webhook] invoice.paid subscription_create (${subscriptionId}) — pierwsza płatność obsłużona przy aktywacji, pomijam.`);
+    return new Response(JSON.stringify({ received: true, skipped: 'first_invoice' }), { status: 200 });
   }
 
   if (await isDuplicateEvent(payload, event.id)) {
@@ -363,8 +481,8 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
     return new Response('Błąd bazy danych', { status: 500 });
   }
 
-  // ── Faktura FakturaXL (vat=zw) za każdą płatność cykliczną ──
-  const invoiceResult = await issueInvoice({
+  // ── Faktura FakturaXL (vat=zw) za odnowienie + PDF ──
+  const { result: invoiceResult, pdf: invoicePdf, number: invoiceNumber } = await issueInvoiceWithPdf({
     email: customerEmail,
     companyName: companyName || undefined,
     buyerName: personName || undefined,
@@ -376,50 +494,22 @@ async function handleSubscriptionInvoicePaid(payload: Payload, event: Stripe.Eve
     amountGross: amountPaid,
     description: 'Utrzymanie i opieka techniczna — abonament miesięczny'
   });
+  await attachInvoiceToOrder(payload, orderDoc.id, amountPaid, invoiceResult, invoiceNumber);
 
-  // Brandowany mail: potwierdzenie pobrania raty + faktura PDF w załączniku.
+  // Mail KONTYNUACJI (inny niż aktywacyjny) + faktura PDF w załączniku.
   if (customerEmail) {
-    const invoicePdf = (invoiceResult?.success && invoiceResult.invoiceId)
-      ? await downloadInvoicePdf(invoiceResult.invoiceId)
-      : null;
     try {
-      await sendPaymentConfirmation({
+      await sendSubscriptionRenewedEmail({
         to: customerEmail,
-        orderNumber: orderDoc.orderNumber || String(orderDoc.id),
         amount: amountPaid,
+        orderNumber: orderDoc.orderNumber || String(orderDoc.id),
         invoicePdf,
-        invoiceNumber: invoiceResult?.success ? (invoiceResult.invoiceNumber || invoiceResult.invoiceId) : null,
-        kind: 'subscription',
+        invoiceNumber,
+        portalUrl: quote?.quoteToken ? `${getCmsPublicUrl()}/api/quotes/subscription-portal/${quote.quoteToken}` : undefined,
       });
     } catch (e) {
-      console.error('[Stripe Webhook] Błąd wysyłki potwierdzenia raty subskrypcji:', e);
+      console.error('[Stripe Webhook] Błąd wysyłki maila kontynuacji subskrypcji:', e);
     }
-  }
-
-  try {
-    await payload.update({
-      collection: 'orders',
-      id: orderDoc.id,
-      data: {
-        payments: [
-          {
-            amount: amountPaid,
-            paidAt: new Date().toISOString(),
-            status: 'paid',
-            fakturaXlInvoiceId: invoiceResult?.success
-              ? (invoiceResult.invoiceNumber || invoiceResult.invoiceId)
-              : undefined,
-            invoiceStatus: invoiceResult?.success ? 'sent' : 'error'
-          }
-        ]
-      }
-    });
-  } catch (e) {
-    console.error('[Stripe Webhook] Błąd aktualizacji faktury w Order (subskrypcja):', e);
-  }
-
-  if (!invoiceResult?.success) {
-    console.error(`[Stripe Webhook] Faktura za płatność subskrypcyjną NIE została wystawiona (Order ${orderDoc.id}).`);
   }
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
@@ -464,13 +554,23 @@ async function handleSubscriptionCanceled(payload: Payload, subscription: Stripe
   }
 
   const brief: any = typeof quote.brief === 'object' && quote.brief !== null ? quote.brief : {};
+  const company = brief.company || quote.title || `Wycena #${quote.id}`;
+  const clientEmail = brief.clientEmail || '';
+
+  // 1) Powiadomienie wewnętrzne (na kontakt@).
   try {
-    await sendSubscriptionCanceledEmail({
-      company: brief.company || quote.title || `Wycena #${quote.id}`,
-      customerEmail: brief.clientEmail || '',
-    });
+    await sendSubscriptionCanceledEmail({ company, customerEmail: clientEmail });
   } catch (e) {
-    console.error('[Stripe Webhook] Błąd wysyłki maila o anulowaniu:', e);
+    console.error('[Stripe Webhook] Błąd wysyłki maila o anulowaniu (wewn.):', e);
+  }
+
+  // 2) Mail do KLIENTA potwierdzający zakończenie subskrypcji.
+  if (clientEmail) {
+    try {
+      await sendSubscriptionEndedEmail({ to: clientEmail, companyName: company });
+    } catch (e) {
+      console.error('[Stripe Webhook] Błąd wysyłki maila o zakończeniu subskrypcji (klient):', e);
+    }
   }
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
@@ -496,7 +596,7 @@ export async function POST(req: Request) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
       return session.mode === 'subscription'
-        ? handleSubscriptionActivated(payload, session)
+        ? handleSubscriptionActivated(payload, event)
         : handleOneOffPayment(payload, event);
     }
     case 'invoice.paid':
