@@ -9,6 +9,7 @@ import { Users } from './src/collections/Users';
 import { Quotes } from './src/collections/Quotes';
 import { Media } from './src/collections/Media';
 import { Documents } from './src/collections/Documents';
+import { DocumentVersions } from './src/collections/DocumentVersions';
 
 // Origins produkcyjne zawsze; localhost tylko poza produkcją (dev).
 const isProd = process.env.NODE_ENV === 'production';
@@ -287,9 +288,25 @@ export default buildConfig({
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS "documents_doc_type_idx" ON "documents" ("doc_type");
 
+                -- Archiwum wersji dokumentów (niezmienne snapshoty treści).
+                CREATE TABLE IF NOT EXISTS "document_versions" (
+                    "id" serial PRIMARY KEY,
+                    "label" varchar,
+                    "doc_type" varchar NOT NULL,
+                    "version" varchar NOT NULL,
+                    "title" varchar,
+                    "content" varchar NOT NULL,
+                    "content_hash" varchar,
+                    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+                    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS "document_versions_doc_type_idx" ON "document_versions" ("doc_type");
+                CREATE INDEX IF NOT EXISTS "document_versions_created_at_idx" ON "document_versions" ("created_at");
+
                 DO $$ BEGIN
                     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'payload_locked_documents_rels') THEN
                         ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "documents_id" integer;
+                        ALTER TABLE "payload_locked_documents_rels" ADD COLUMN IF NOT EXISTS "document_versions_id" integer;
                     END IF;
                 END $$;
             `);
@@ -312,7 +329,7 @@ export default buildConfig({
         : undefined,
     cors: allowedOrigins,
     csrf: allowedOrigins,
-    collections: [Users, Briefs, Orders, Quotes, Media, Documents],
+    collections: [Users, Briefs, Orders, Quotes, Media, Documents, DocumentVersions],
     db: postgresAdapter({
         pool: {
             connectionString: process.env.DATABASE_URI

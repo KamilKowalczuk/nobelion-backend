@@ -270,7 +270,18 @@ export const Quotes: CollectionConfig = {
                                 },
                                 { name: 'email', type: 'text', label: 'E-mail akceptującego', admin: { readOnly: true } },
                                 { name: 'agreementAccepted', type: 'checkbox', label: 'Umowa współpracy zaakceptowana', admin: { readOnly: true } },
-                                { name: 'documents', type: 'json', label: 'Zaakceptowane dokumenty (typ + wersja + hash)', admin: { readOnly: true } },
+                                // Surowe dane zostają w bazie (źródło prawdy), ale w panelu chowamy je
+                                // na rzecz czytelnego widoku z linkiem do zaakceptowanego snapshotu.
+                                { name: 'documents', type: 'json', label: 'Zaakceptowane dokumenty (surowe dane)', admin: { readOnly: true, hidden: true } },
+                                {
+                                    name: 'consentDocsView',
+                                    type: 'ui',
+                                    admin: {
+                                        components: {
+                                            Field: '/src/components/ConsentDocs.tsx#ConsentDocs',
+                                        }
+                                    }
+                                },
                             ]
                         }
                     ]

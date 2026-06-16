@@ -73,6 +73,7 @@ export interface Config {
     quotes: Quote;
     media: Media;
     documents: Document;
+    'document-versions': DocumentVersion;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -86,6 +87,7 @@ export interface Config {
     quotes: QuotesSelect<false> | QuotesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     documents: DocumentsSelect<false> | DocumentsSelect<true>;
+    'document-versions': DocumentVersionsSelect<false> | DocumentVersionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -389,6 +391,23 @@ export interface Document {
   createdAt: string;
 }
 /**
+ * Archiwum wersji dokumentów — niezmienne, tworzone automatycznie przy każdej zmianie treści.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "document-versions".
+ */
+export interface DocumentVersion {
+  id: number;
+  label?: string | null;
+  docType?: string | null;
+  version?: string | null;
+  title?: string | null;
+  content?: string | null;
+  contentHash?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -435,6 +454,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'documents';
         value: number | Document;
+      } | null)
+    | ({
+        relationTo: 'document-versions';
+        value: number | DocumentVersion;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -661,6 +684,20 @@ export interface DocumentsSelect<T extends boolean = true> {
   title?: T;
   content?: T;
   version?: T;
+  contentHash?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "document-versions_select".
+ */
+export interface DocumentVersionsSelect<T extends boolean = true> {
+  label?: T;
+  docType?: T;
+  version?: T;
+  title?: T;
+  content?: T;
   contentHash?: T;
   updatedAt?: T;
   createdAt?: T;

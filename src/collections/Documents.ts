@@ -72,6 +72,31 @@ export const Documents: CollectionConfig = {
                 return data;
             },
         ],
+        afterChange: [
+            async ({ doc, previousDoc, operation, req }) => {
+                // Snapshot do archiwum przy utworzeniu lub zmianie treści (hash inny).
+                const changed = operation === 'create' || previousDoc?.contentHash !== doc.contentHash;
+                if (!changed) return doc;
+                try {
+                    await req.payload.create({
+                        collection: 'document-versions',
+                        overrideAccess: true,
+                        data: {
+                            label: `${doc.title} — v${doc.version}`,
+                            docType: doc.docType,
+                            version: doc.version,
+                            title: doc.title,
+                            content: doc.content,
+                            contentHash: doc.contentHash,
+                        },
+                    });
+                } catch (e) {
+                    // Archiwizacja nie może wywrócić zapisu dokumentu — logujemy i jedziemy.
+                    console.error('[Documents] Nie udało się zarchiwizować wersji:', e);
+                }
+                return doc;
+            },
+        ],
     },
     endpoints: [
         {
@@ -79,8 +104,12 @@ export const Documents: CollectionConfig = {
             path: '/public',
             method: 'get',
             handler: async (req) => {
+                // Jawna whitelista typów — endpoint jest publiczny (bez auth), więc
+                // nigdy nie może wyciec dokument spoza listy dokumentów z natury jawnych.
+                const PUBLIC_DOC_TYPES = ['umowa-wspolpracy', 'regulamin', 'polityka-prywatnosci', 'rodo'];
                 const docs = await req.payload.find({
                     collection: 'documents',
+                    where: { docType: { in: PUBLIC_DOC_TYPES } },
                     limit: 20,
                     depth: 0,
                 });
