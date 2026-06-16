@@ -267,6 +267,7 @@ export default buildConfig({
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_accepted_at" timestamp(3) with time zone;
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_ip" varchar;
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_email" varchar;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_agreement_accepted" boolean;
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_documents" jsonb;
 
                 -- Kolekcja dokumentów prawnych.

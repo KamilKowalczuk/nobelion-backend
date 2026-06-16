@@ -269,6 +269,7 @@ export const Quotes: CollectionConfig = {
                                     ]
                                 },
                                 { name: 'email', type: 'text', label: 'E-mail akceptującego', admin: { readOnly: true } },
+                                { name: 'agreementAccepted', type: 'checkbox', label: 'Umowa współpracy zaakceptowana', admin: { readOnly: true } },
                                 { name: 'documents', type: 'json', label: 'Zaakceptowane dokumenty (typ + wersja + hash)', admin: { readOnly: true } },
                             ]
                         }
@@ -542,8 +543,8 @@ export const Quotes: CollectionConfig = {
                 // ── Clickwrap: wymagana akceptacja dokumentów + oświadczenie odstąpienia ──
                 // (Tylko przy pierwszej płatności; jeśli zgoda już zapisana — nie wymagamy ponownie.)
                 if (!quote.consent?.acceptedAt) {
-                    if (body.acceptDocuments !== true || body.acceptWithdrawal !== true) {
-                        return Response.json({ error: 'Aby kontynuować, zaakceptuj umowę współpracy, regulamin, politykę prywatności oraz oświadczenie o rozpoczęciu prac.' }, { status: 400 });
+                    if (body.acceptTerms !== true || body.acceptAgreement !== true) {
+                        return Response.json({ error: 'Aby kontynuować, zaakceptuj regulamin, politykę prywatności oraz umowę współpracy.' }, { status: 400 });
                     }
                     try {
                         const docsRes = await req.payload.find({ collection: 'documents', limit: 20, depth: 0 });
@@ -563,7 +564,8 @@ export const Quotes: CollectionConfig = {
                                     acceptedAt: new Date().toISOString(),
                                     ip,
                                     email: brief.clientEmail || '',
-                                    documents: { acceptedWithdrawal: true, items: acceptedDocs },
+                                    agreementAccepted: true,
+                                    documents: { acceptedTerms: true, acceptedAgreement: true, items: acceptedDocs },
                                 }
                             }
                         });

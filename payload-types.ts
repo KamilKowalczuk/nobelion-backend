@@ -340,6 +340,7 @@ export interface Quote {
     acceptedAt?: string | null;
     ip?: string | null;
     email?: string | null;
+    agreementAccepted?: boolean | null;
     documents?:
       | {
           [k: string]: unknown;
@@ -607,6 +608,7 @@ export interface QuotesSelect<T extends boolean = true> {
         acceptedAt?: T;
         ip?: T;
         email?: T;
+        agreementAccepted?: T;
         documents?: T;
       };
   quoteSentAt?: T;
