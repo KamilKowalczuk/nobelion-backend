@@ -12,6 +12,15 @@ import {
 } from '../../../../src/services/email';
 import { getCmsPublicUrl } from '../../../../src/services/briefs';
 
+// Pełny adres ulicy: Stripe rozbija na line1 + line2 (numer mieszkania itp.).
+// Klienci wpisują różnie — jeśli line2 jest, doklejamy ją, żeby nie zgubić danych.
+function fullStreet(addr?: Stripe.Address | null): string {
+  if (!addr) return '';
+  const l1 = (addr.line1 || '').trim();
+  const l2 = (addr.line2 || '').trim();
+  return [l1, l2].filter(Boolean).join(', ');
+}
+
 // Faktura FakturaXL → pobranie PDF → zwraca dane do dołączenia w mailu.
 async function issueInvoiceWithPdf(input: Parameters<typeof issueInvoice>[0]) {
   const result = await issueInvoice(input);
@@ -97,7 +106,7 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
         billingPhone: customerPhone,
         billingCompanyName: customerCompany,
         billingNip: customerNip,
-        billingStreet: addr?.line1 || '',
+        billingStreet: fullStreet(addr),
         billingCity: addr?.city || '',
         billingPostalCode: addr?.postal_code || '',
         billingCountry: addr?.country || '',
@@ -138,7 +147,7 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
     companyName: customerCompany || undefined,
     buyerName: customerName || undefined,
     nip: customerNip || undefined,
-    street: addr?.line1 || undefined,
+    street: fullStreet(addr) || undefined,
     postCode: addr?.postal_code || undefined,
     city: addr?.city || undefined,
     phone: customerPhone || undefined,
@@ -237,7 +246,7 @@ async function handleSubscriptionActivated(payload: Payload, event: Stripe.Event
         subscriptionBilling: {
           companyName,
           nip,
-          street: addr?.line1 || '',
+          street: fullStreet(addr),
           city: addr?.city || '',
           postalCode: addr?.postal_code || '',
           phone,
@@ -268,7 +277,7 @@ async function handleSubscriptionActivated(payload: Payload, event: Stripe.Event
         billingPhone: phone,
         billingCompanyName: companyName,
         billingNip: nip,
-        billingStreet: addr?.line1 || '',
+        billingStreet: fullStreet(addr),
         billingCity: addr?.city || '',
         billingPostalCode: addr?.postal_code || '',
         payments: [{ amount: amountPaid, paidAt: new Date().toISOString(), status: 'paid' }],
@@ -285,7 +294,7 @@ async function handleSubscriptionActivated(payload: Payload, event: Stripe.Event
     companyName: companyName || undefined,
     buyerName: buyerName || undefined,
     nip: nip || undefined,
-    street: addr?.line1 || undefined,
+    street: fullStreet(addr) || undefined,
     postCode: addr?.postal_code || undefined,
     city: addr?.city || undefined,
     phone: phone || undefined,
