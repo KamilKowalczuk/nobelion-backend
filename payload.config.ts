@@ -270,6 +270,11 @@ export default buildConfig({
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_email" varchar;
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_agreement_accepted" boolean;
                 ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_documents" jsonb;
+                ALTER TABLE "quotes" ADD COLUMN IF NOT EXISTS "consent_generated_contract_pdf_id" integer;
+
+                DO $$ BEGIN
+                    ALTER TABLE "quotes" ADD CONSTRAINT "quotes_consent_generated_contract_pdf_id_media_id_fk" FOREIGN KEY ("consent_generated_contract_pdf_id") REFERENCES "public"."media"("id") ON DELETE SET NULL;
+                EXCEPTION WHEN duplicate_object THEN null; END $$;
 
                 -- Kolekcja dokumentów prawnych.
                 DO $$ BEGIN
