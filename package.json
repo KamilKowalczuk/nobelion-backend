@@ -13,8 +13,10 @@
     "@payloadcms/email-resend": "^3.84.1",
     "@payloadcms/next": "^3.84.1",
     "@payloadcms/richtext-lexical": "^3.84.1",
+    "markdown-it": "^14.2.0",
     "next": "15.4.11",
     "payload": "^3.84.1",
+    "puppeteer": "^25.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.12.2",
@@ -22,6 +24,7 @@
     "stripe": "^22.1.0"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "typescript": "^5.9.3"
   }
 }

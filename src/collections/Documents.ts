@@ -113,13 +113,27 @@ export const Documents: CollectionConfig = {
                     limit: 20,
                     depth: 0,
                 });
-                const out = docs.docs.map((d: any) => ({
-                    docType: d.docType,
-                    title: d.title,
-                    version: d.version || '1',
-                    contentHash: d.contentHash || '',
-                    content: d.content || '',
-                }));
+                const out = docs.docs.map((d: any) => {
+                    let content = d.content || '';
+                    if (d.docType === 'umowa-wspolpracy') {
+                        const part2Start = content.indexOf('# CZĘŚĆ II — TREŚĆ UMOWY');
+                        const part3Start = content.indexOf('# CZĘŚĆ III — CERTYFIKAT AKCEPTACJI');
+                        if (part2Start !== -1) {
+                            if (part3Start !== -1) {
+                                content = content.substring(part2Start, part3Start).trim();
+                            } else {
+                                content = content.substring(part2Start).trim();
+                            }
+                        }
+                    }
+                    return {
+                        docType: d.docType,
+                        title: d.title,
+                        version: d.version || '1',
+                        contentHash: d.contentHash || '',
+                        content: content,
+                    };
+                });
                 return Response.json({ documents: out });
             },
         },

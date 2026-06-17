@@ -14,7 +14,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV HOSTNAME=0.0.0.0
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 && apk add --no-cache su-exec
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001 && apk add --no-cache su-exec chromium nss freetype harfbuzz ca-certificates ttf-freefont
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/tsconfig.json ./

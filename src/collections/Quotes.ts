@@ -274,6 +274,13 @@ export const Quotes: CollectionConfig = {
                                 // na rzecz czytelnego widoku z linkiem do zaakceptowanego snapshotu.
                                 { name: 'documents', type: 'json', label: 'Zaakceptowane dokumenty (surowe dane)', admin: { readOnly: true, hidden: true } },
                                 {
+                                    name: 'generatedContractPdf',
+                                    type: 'upload',
+                                    relationTo: 'media',
+                                    label: 'Wygenerowany plik umowy (PDF)',
+                                    admin: { readOnly: true, description: 'Generowany automatycznie po płatności i wysyłany do klienta.' }
+                                },
+                                {
                                     name: 'consentDocsView',
                                     type: 'ui',
                                     admin: {
@@ -410,6 +417,27 @@ export const Quotes: CollectionConfig = {
                 }
 
                 return data;
+            }
+        ],
+        afterChange: [
+            async ({ doc, previousDoc, req }) => {
+                // Uruchom generator umowy w tle, gdy status płatności zmieni się na opłacony
+                if (
+                    doc.paymentStatus !== previousDoc.paymentStatus &&
+                    (doc.paymentStatus === 'paid_half' || doc.paymentStatus === 'paid_full') &&
+                    !doc.consent?.generatedContractPdf
+                ) {
+                    try {
+                        const { processContractForQuote } = await import('../services/contractService');
+                        // Nie czekamy na wynik, by nie blokować hooka i response'a do Stripe Webhooka
+                        processContractForQuote(doc, req.payload).catch(err => {
+                            console.error('[Quotes afterChange] Błąd asynchronicznego generowania PDF:', err);
+                        });
+                    } catch (e) {
+                        console.error('[Quotes afterChange] Błąd inicjowania contractService:', e);
+                    }
+                }
+                return doc;
             }
         ]
     },
