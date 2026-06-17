@@ -158,7 +158,7 @@ export async function generateContractPdf(markdownContent: string, dataParams: R
     // 1. Zamiana tagów na wartości z obiektu dataParams
     let personalizedMarkdown = markdownContent;
     for (const [key, value] of Object.entries(dataParams)) {
-        const regex = new RegExp(\`\\{\\{$\{key}\\}\\}\`, 'g');
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
         personalizedMarkdown = personalizedMarkdown.replace(regex, String(value || '---'));
     }
 
@@ -194,12 +194,12 @@ export async function generateContractPdf(markdownContent: string, dataParams: R
             },
             displayHeaderFooter: true,
             headerTemplate: '<div></div>', // pusty
-            footerTemplate: \`
+            footerTemplate: `
                 <div style="width:100%; font-size:8px; font-family:'Manrope', sans-serif; color:#777; padding:0 40px; display:flex; justify-content:space-between;">
                     <span>Wygenerowano bezpiecznie przez Nobelion System</span>
                     <span>Strona <span class="pageNumber"></span> z <span class="totalPages"></span></span>
                 </div>
-            \`
+            `
         });
 
         return Buffer.from(pdfBuffer);
