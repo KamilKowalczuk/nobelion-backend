@@ -180,7 +180,8 @@ export async function generateContractPdf(markdownContent: string, dataParams: R
 
     try {
         const page = await browser.newPage();
-        await page.setContent(fullHtml, { waitUntil: 'networkidle0' }); // czeka na wczytanie fontów
+        await page.setContent(fullHtml, { waitUntil: 'load' });
+        await page.evaluateHandle('document.fonts.ready'); // wymusza poprawne doczytanie webfontów (Cinzel, Manrope) przed drukiem
 
         // 4. Generowanie PDF z elegancką stopką stronicowania
         const pdfBuffer = await page.pdf({
