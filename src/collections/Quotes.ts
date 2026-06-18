@@ -420,23 +420,7 @@ export const Quotes: CollectionConfig = {
             }
         ],
         afterChange: [
-            async ({ doc, previousDoc, req }) => {
-                // Uruchom generator umowy w tle, gdy status płatności zmieni się na opłacony
-                if (
-                    doc.paymentStatus !== previousDoc.paymentStatus &&
-                    (doc.paymentStatus === 'paid_half' || doc.paymentStatus === 'paid_full') &&
-                    !doc.consent?.generatedContractPdf
-                ) {
-                    try {
-                        const { processContractForQuote } = await import('../services/contractService');
-                        // Nie czekamy na wynik, by nie blokować hooka i response'a do Stripe Webhooka
-                        processContractForQuote(doc, req.payload).catch(err => {
-                            console.error('[Quotes afterChange] Błąd asynchronicznego generowania PDF:', err);
-                        });
-                    } catch (e) {
-                        console.error('[Quotes afterChange] Błąd inicjowania contractService:', e);
-                    }
-                }
+            async ({ doc }) => {
                 return doc;
             }
         ]

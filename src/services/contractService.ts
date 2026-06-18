@@ -1,13 +1,13 @@
 import { generateContractPdf } from './pdfGenerator';
 import { Payload } from 'payload';
 
-export async function processContractForQuote(quote: any, payload: Payload) {
-    if (quote.consent?.generatedContractPdf) return; // Już wygenerowano
-    if (!quote.consent?.documents?.items || !quote.consent?.acceptedAt) return; // Brak zgód
+export async function processContractForQuote(quote: any, payload: Payload): Promise<{ pdfBuffer: Buffer, filename: string } | null> {
+    if (quote.consent?.generatedContractPdf) return null; // Już wygenerowano
+    if (!quote.consent?.documents?.items || !quote.consent?.acceptedAt) return null; // Brak zgód
 
     const acceptedDocs = quote.consent.documents.items;
     const umowaConsent = acceptedDocs.find((d: any) => d.docType === 'umowa-wspolpracy');
-    if (!umowaConsent || !umowaConsent.contentHash) return;
+    if (!umowaConsent || !umowaConsent.contentHash) return null;
 
     // Pobierz historyczną wersję umowy
     const docVersions = await payload.find({
@@ -32,7 +32,7 @@ export async function processContractForQuote(quote: any, payload: Payload) {
         if (currentDoc.docs.length > 0) markdownContent = currentDoc.docs[0].content as string;
     }
 
-    if (!markdownContent) return;
+    if (!markdownContent) return null;
 
     // Pobierz powiązany Brief
     let brief = quote.brief;
@@ -106,30 +106,6 @@ export async function processContractForQuote(quote: any, payload: Payload) {
         }
     });
 
-    // Wyślij e-mail z PDF
-    try {
-        await payload.sendEmail({
-            to: quote.consent.email,
-            from: process.env.EMAIL_FROM || 'kontakt@nobelion.pl',
-            subject: 'Twoja umowa i potwierdzenie rozpoczęcia prac — Nobelion',
-            html: `
-                <div style="font-family: sans-serif; color: #1e2330;">
-                    <h2>Dziękujemy za zaufanie!</h2>
-                    <p>Potwierdzamy, że opłata została zaksięgowana i prace nad Twoim projektem zostały oficjalnie rozpoczęte.</p>
-                    <p>W załączniku znajdziesz spersonalizowany plik PDF z naszą <strong>Umową Współpracy</strong>. 
-                    Dokument jest opatrzony Certyfikatem Akceptacji stanowiącym cyfrowy dowód zawarcia umowy (logi IP, znacznik czasu, hash wersji).</p>
-                    <p>Niebawem wyślemy też osobną wiadomość z fakturą VAT.</p>
-                    <p>Pozdrawiamy,<br/><strong>Zespół Nobelion</strong></p>
-                </div>
-            `,
-            attachments: [
-                {
-                    filename: filename,
-                    content: pdfBuffer
-                }
-            ]
-        });
-    } catch (e) {
-        console.error('[Quotes] Błąd wysyłki maila z umową PDF:', e);
-    }
+    // Zwróć plik aby nadrzędny kod mógł go dodać do załączników Stripe Webhooka
+    return { pdfBuffer, filename };
 }

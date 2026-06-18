@@ -486,6 +486,8 @@ export const sendPaymentConfirmation = async ({
     invoicePdf?: Buffer | null,
     invoiceNumber?: string | null,
     kind?: PaymentKind,
+    contractPdf?: Buffer | null,
+    contractFilename?: string | null,
 }) => {
     const resend = getResend();
 
@@ -524,6 +526,24 @@ export const sendPaymentConfirmation = async ({
         ? ' Faktura w formacie PDF znajduje się w załączniku tej wiadomości.'
         : ' Faktura zostanie wysłana w osobnej wiadomości.';
 
+    const contractLine = contractPdf
+        ? ' W załączniku znajdziesz również spersonalizowaną, wygenerowaną właśnie dla Ciebie Umowę Współpracy, podpisaną cyfrowo poprzez system logowania akceptacji.'
+        : '';
+
+    const attachments = [];
+    if (hasInvoice && invoicePdf) {
+        attachments.push({
+            filename: `faktura-${(invoiceNumber || orderNumber).replace(/[^\w.-]+/g, '_')}.pdf`,
+            content: invoicePdf as Buffer,
+        });
+    }
+    if (contractPdf) {
+        attachments.push({
+            filename: contractFilename || 'Umowa_wspolpracy_Nobelion.pdf',
+            content: contractPdf as Buffer,
+        });
+    }
+
     const { data, error } = await resend.emails.send({
         from: `Nobelion <${getFrom()}>`,
         to,
@@ -532,16 +552,11 @@ export const sendPaymentConfirmation = async ({
             preheader: `${v.title} — płatność potwierdzona.`,
             eyebrow: v.eyebrow,
             title: v.title,
-            intro: v.lead + invoiceLine,
+            intro: v.lead + invoiceLine + contractLine,
             sections,
             note: 'W razie pytań odpowiedz bezpośrednio na tę wiadomość — to skrzynka, którą czytamy.',
         }),
-        ...(hasInvoice ? {
-            attachments: [{
-                filename: `faktura-${(invoiceNumber || orderNumber).replace(/[^\w.-]+/g, '_')}.pdf`,
-                content: invoicePdf as Buffer,
-            }]
-        } : {}),
+        ...(attachments.length > 0 ? { attachments } : {}),
     });
 
     if (error) {

@@ -121,9 +121,10 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
     });
     console.log(`[Stripe Webhook] Utworzono Order ID: ${orderDoc.id}`);
 
+    let updatedQuote: any = null;
     if (quoteId) {
       const newPaymentStatus = isFirstTranche ? 'paid_half' : 'paid_full';
-      await payload.update({
+      updatedQuote = await payload.update({
         collection: 'quotes',
         id: parseInt(quoteId, 10),
         data: { paymentStatus: newPaymentStatus, orderId: orderDoc.id }
@@ -159,7 +160,23 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
     ? await downloadInvoicePdf(invoiceResult.invoiceId)
     : null;
 
-  // Jeden mail: potwierdzenie płatności + faktura PDF w załączniku.
+  // Generowanie umowy PDF, jeśli wycena to obsługuje i zgody zostały wyrażone
+  let contractPdf = null;
+  let contractFilename = null;
+  if (updatedQuote) {
+      try {
+          const { processContractForQuote } = await import('../../../../src/services/contractService');
+          const contractRes = await processContractForQuote(updatedQuote, payload);
+          if (contractRes) {
+              contractPdf = contractRes.pdfBuffer;
+              contractFilename = contractRes.filename;
+          }
+      } catch(e) {
+          console.error('[Stripe Webhook] Błąd generowania PDF umowy:', e);
+      }
+  }
+
+  // Jeden mail: potwierdzenie płatności + faktura PDF w załączniku (+ umowa, jeśli jest).
   if (customerEmail) {
     try {
       await sendPaymentConfirmation({
@@ -170,6 +187,8 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
         invoiceNumber: invoiceResult?.success ? (invoiceResult.invoiceNumber || invoiceResult.invoiceId) : null,
         // '50' | 'final50' | '100' — decyduje o treści maila.
         kind: (paymentModel === '50' || paymentModel === 'final50') ? paymentModel : '100',
+        contractPdf,
+        contractFilename,
       });
     } catch (e) {
       console.error('[Stripe Webhook] Błąd wysyłki potwierdzenia płatności:', e);
