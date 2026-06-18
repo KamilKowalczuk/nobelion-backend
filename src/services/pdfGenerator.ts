@@ -175,7 +175,7 @@ export async function generateContractPdf(markdownContent: string, dataParams: R
             '--disable-dev-shm-usage',
             '--font-render-hinting=none' // lepsza jakość fontów w pdf
         ],
-        // executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined // Dla Alpine Docker
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined // Dla Alpine Docker
     });
 
     try {

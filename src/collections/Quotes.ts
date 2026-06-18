@@ -340,7 +340,20 @@ export const Quotes: CollectionConfig = {
     ],
     hooks: {
         beforeChange: [
-            async ({ data, req }) => {
+            async ({ data, req, originalDoc }) => {
+                // Ochrona przed nadpisywaniem nowszych danych przez zdezaktualizowany widok w panelu Admina
+                if (originalDoc && req.user) {
+                    if (originalDoc.paymentStatus && originalDoc.paymentStatus !== 'unpaid' && data.paymentStatus === 'unpaid') {
+                        data.paymentStatus = originalDoc.paymentStatus;
+                    }
+                    if (originalDoc.orderId && !data.orderId) {
+                        data.orderId = originalDoc.orderId;
+                    }
+                    if (originalDoc.consent?.acceptedAt && !data.consent?.acceptedAt) {
+                        data.consent = originalDoc.consent;
+                    }
+                }
+
                 if (!data.quoteToken) {
                     data.quoteToken = crypto.randomBytes(16).toString('hex');
                 }
