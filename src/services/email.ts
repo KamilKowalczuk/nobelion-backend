@@ -479,6 +479,8 @@ export const sendPaymentConfirmation = async ({
     invoicePdf,
     invoiceNumber,
     kind = '100',
+    contractPdf,
+    contractFilename,
 }: {
     to: string,
     orderNumber: string,

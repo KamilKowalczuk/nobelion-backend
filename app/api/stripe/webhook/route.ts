@@ -90,6 +90,7 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
   const currency = session.currency || 'pln';
 
   let orderDoc;
+  let updatedQuote: any = null;
   try {
     orderDoc = await payload.create({
       collection: 'orders',
@@ -121,7 +122,6 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
     });
     console.log(`[Stripe Webhook] Utworzono Order ID: ${orderDoc.id}`);
 
-    let updatedQuote: any = null;
     if (quoteId) {
       const newPaymentStatus = isFirstTranche ? 'paid_half' : 'paid_full';
       updatedQuote = await payload.update({
