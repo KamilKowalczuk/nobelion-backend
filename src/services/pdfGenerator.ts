@@ -88,11 +88,20 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
             width: 100%;
             border-collapse: collapse;
             margin: 20px 0;
-            page-break-inside: avoid;
+            page-break-inside: auto;
             background-color: #FFFFFF;
             border-radius: var(--r-card);
             overflow: hidden;
             border: 1px solid var(--color-hair-ink);
+        }
+        
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        
+        thead {
+            display: table-header-group;
         }
 
         th {
@@ -120,7 +129,7 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
         /* Zmienne z Payload (oznaczone w backtickach w Markdown) */
         code {
             font-family: inherit;
-            font-weight: 700;
+            font-weight: normal;
             color: var(--color-ink);
             background: none;
             padding: 0;
@@ -184,11 +193,15 @@ export async function generateContractPdf(markdownContent: string, dataParams: R
     }
 
     // 2. Wczytywanie logo i renderowanie do HTML
-    let logoSrc = '';
+    let logoSrc = 'https://nobelion.pl/email-logo.png'; // Niezawodny fallback URL
     try {
-        const logoPath = path.join(process.cwd(), 'public', 'logo.png');
-        if (fs.existsSync(logoPath)) {
-            const base64 = fs.readFileSync(logoPath, 'base64');
+        const localPath1 = path.join(process.cwd(), 'public', 'logo.png');
+        const localPath2 = path.resolve(__dirname, '../../public/logo.png');
+        const localPath3 = path.resolve(__dirname, '../../../public/logo.png');
+        const finalPath = fs.existsSync(localPath1) ? localPath1 : (fs.existsSync(localPath2) ? localPath2 : (fs.existsSync(localPath3) ? localPath3 : null));
+        
+        if (finalPath) {
+            const base64 = fs.readFileSync(finalPath, 'base64');
             logoSrc = `data:image/png;base64,${base64}`;
         }
     } catch(e) {
@@ -214,6 +227,8 @@ export async function generateContractPdf(markdownContent: string, dataParams: R
         const page = await browser.newPage();
         await page.setContent(fullHtml, { waitUntil: 'load' });
         await page.evaluateHandle('document.fonts.ready'); // wymusza poprawne doczytanie webfontów (Cinzel, Manrope) przed drukiem
+        // Wymusza poczekanie na załadowanie logo z sieci (email-logo.png fallback)
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
 
         // 4. Generowanie PDF z elegancką stopką stronicowania
         const pdfBuffer = await page.pdf({
