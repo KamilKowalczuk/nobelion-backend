@@ -96,32 +96,6 @@ export async function processContractForQuote(quote: any, payload: Payload): Pro
     const pdfBuffer = await generateContractPdf(markdownContent, dataParams);
     const filename = `Umowa_Wspolpracy_Nobelion_${quote.id}.pdf`;
 
-    // Zapisz w Media
-    const mediaDoc = await payload.create({
-        collection: 'media',
-        data: {
-            alt: `Umowa ${filename}`,
-        },
-        file: {
-            data: pdfBuffer,
-            mimetype: 'application/pdf',
-            name: filename,
-            size: pdfBuffer.length
-        }
-    });
-
-    // Zaktualizuj Quote
-    await payload.update({
-        collection: 'quotes',
-        id: quote.id,
-        data: {
-            consent: {
-                ...(quote.consent || {}),
-                generatedContractPdf: mediaDoc.id
-            }
-        }
-    });
-
-    // Zwróć plik aby nadrzędny kod mógł go dodać do załączników Stripe Webhooka
+    // Zwróć plik aby nadrzędny kontroler (webhook) mógł go zapisać w bazie i wysłać
     return { pdfBuffer, filename };
 }

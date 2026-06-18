@@ -123,7 +123,8 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
     console.log(`[Stripe Webhook] Utworzono Order ID: ${orderDoc.id}`);
 
     if (quoteId) {
-      const newPaymentStatus = isFirstTranche ? 'paid_half' : 'paid_full';
+      const { PaymentStatus, QuoteStatus } = await import('../../../../src/constants/quotes');
+      const newPaymentStatus = isFirstTranche ? PaymentStatus.PAID_HALF : PaymentStatus.PAID_FULL;
       updatedQuote = await payload.update({
         collection: 'quotes',
         id: parseInt(quoteId, 10),
@@ -143,22 +144,30 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
       ? `Wycena Projektu - II Rata (płatność końcowa)`
       : `Wycena Projektu - Całość`;
 
-  const invoiceResult = await issueInvoice({
-    email: customerEmail,
-    companyName: customerCompany || undefined,
-    buyerName: customerName || undefined,
-    nip: customerNip || undefined,
-    street: fullStreet(addr) || undefined,
-    postCode: addr?.postal_code || undefined,
-    city: addr?.city || undefined,
-    phone: customerPhone || undefined,
-    amountGross: amountTotal,
-    description
-  });
+  let invoiceResult: any = null;
+  let invoicePdf: Buffer | null = null;
+  try {
+      invoiceResult = await issueInvoice({
+          email: customerEmail,
+          companyName: customerCompany || undefined,
+          buyerName: customerName || undefined,
+          nip: customerNip || undefined,
+          street: fullStreet(addr) || undefined,
+          postCode: addr?.postal_code || undefined,
+          city: addr?.city || undefined,
+          phone: customerPhone || undefined,
+          amountGross: amountTotal,
+          description
+      });
 
-  const invoicePdf = (invoiceResult?.success && invoiceResult.invoiceId)
-    ? await downloadInvoicePdf(invoiceResult.invoiceId)
-    : null;
+      if (invoiceResult?.success && invoiceResult.invoiceId) {
+          invoicePdf = await downloadInvoicePdf(invoiceResult.invoiceId);
+      }
+  } catch (e: any) {
+      console.error('[Stripe Webhook] Błąd obsługi faktury:', e);
+      // Nie przerywamy webhoooka - email nadal powinien zostać wysłany, 
+      // po prostu bez faktury i admin musi ją wystawić ręcznie.
+  }
 
   // Generowanie umowy PDF, jeśli wycena to obsługuje i zgody zostały wyrażone
   let contractPdf = null;
@@ -170,6 +179,29 @@ async function handleOneOffPayment(payload: Payload, event: Stripe.Event): Promi
           if (contractRes) {
               contractPdf = contractRes.pdfBuffer;
               contractFilename = contractRes.filename;
+
+              // Zapis do bazy na poziomie kontrolera, by usunąć ukrytą mutację w contractService
+              const mediaDoc = await payload.create({
+                  collection: 'media',
+                  data: { alt: `Umowa ${contractFilename}` },
+                  file: {
+                      data: contractPdf,
+                      mimetype: 'application/pdf',
+                      name: contractFilename,
+                      size: contractPdf.length
+                  }
+              });
+
+              await payload.update({
+                  collection: 'quotes',
+                  id: updatedQuote.id,
+                  data: {
+                      consent: {
+                          ...(updatedQuote.consent || {}),
+                          generatedContractPdf: mediaDoc.id
+                      }
+                  }
+              });
           }
       } catch(e) {
           console.error('[Stripe Webhook] Błąd generowania PDF umowy:', e);

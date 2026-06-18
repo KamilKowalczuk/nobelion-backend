@@ -1,8 +1,7 @@
 import type { CollectionConfig } from 'payload';
-import { sendQuoteEmail, sendInternalChangeRequestEmail, sendSubscriptionEmail, sendFinalPaymentEmail } from '../services/email';
-import { createStripeSession, createBillingPortalSession, getCmsPublicUrl, invoiceDataCollection } from '../services/briefs';
 import { isRateLimited } from '../services/rateLimit';
-import crypto from 'crypto';
+import { quoteBeforeChangeHook } from '../hooks/quoteHooks';
+import { PaymentStatus, QuoteStatus } from '../constants/quotes';
 
 export const Quotes: CollectionConfig = {
     slug: 'quotes',
@@ -172,11 +171,11 @@ export const Quotes: CollectionConfig = {
                             name: 'paymentStatus',
                             type: 'select',
                             label: 'Status płatności',
-                            defaultValue: 'unpaid',
+                            defaultValue: PaymentStatus.UNPAID,
                             options: [
-                                { label: '⏳ Nieopłacone', value: 'unpaid' },
-                                { label: '💛 I Rata (50%) opłacona', value: 'paid_half' },
-                                { label: '💚 Całość opłacona', value: 'paid_full' }
+                                { label: '⏳ Nieopłacone', value: PaymentStatus.UNPAID },
+                                { label: '💛 I Rata (50%) opłacona', value: PaymentStatus.PAID_HALF },
+                                { label: '💚 Całość opłacona', value: PaymentStatus.PAID_FULL }
                             ],
                             admin: { readOnly: true, description: 'Aktualizowane automatycznie przez webhook Stripe.' }
                         },
@@ -339,99 +338,7 @@ export const Quotes: CollectionConfig = {
         }
     ],
     hooks: {
-        beforeChange: [
-            async ({ data, req, originalDoc }) => {
-                // Ochrona przed nadpisywaniem nowszych danych przez zdezaktualizowany widok w panelu Admina
-                if (originalDoc && req.user) {
-                    if (originalDoc.paymentStatus && originalDoc.paymentStatus !== 'unpaid' && data.paymentStatus === 'unpaid') {
-                        data.paymentStatus = originalDoc.paymentStatus;
-                    }
-                    if (originalDoc.orderId && !data.orderId) {
-                        data.orderId = originalDoc.orderId;
-                    }
-                    if (originalDoc.consent?.acceptedAt && !data.consent?.acceptedAt) {
-                        data.consent = originalDoc.consent;
-                    }
-                }
-
-                if (!data.quoteToken) {
-                    data.quoteToken = crypto.randomBytes(16).toString('hex');
-                }
-
-                if (data.actionSendQuote === true) {
-                    if (!data.brief) throw new Error('Nie można wysłać wyceny bez powiązanego briefu.');
-                    if (!data.totalPrice || data.totalPrice <= 0) throw new Error('Ustaw cenę przed wysłaniem wyceny.');
-
-                    const brief = await req.payload.findByID({
-                        collection: 'briefs',
-                        id: typeof data.brief === 'object' ? data.brief.id : data.brief
-                    });
-                    if (!brief?.clientEmail) throw new Error('Brief nie ma adresu email klienta.');
-
-                    await sendQuoteEmail({
-                        to: brief.clientEmail,
-                        companyName: brief.company,
-                        quoteAmount: data.totalPrice,
-                        quoteToken: data.quoteToken
-                    });
-                    data.quoteSentAt = new Date().toISOString();
-                    if (data.status === 'draft') data.status = 'sent';
-                    data.actionSendQuote = false;
-                }
-
-                if (data.actionSendSubscription === true) {
-                    if (!data.brief) throw new Error('Nie można wysłać linku subskrypcji bez powiązanego briefu.');
-                    if (!data.maintenancePrice || data.maintenancePrice <= 0) {
-                        throw new Error('Ustaw cenę utrzymania (Finanse → Cena utrzymania / miesiąc) przed wysłaniem linku subskrypcji.');
-                    }
-
-                    const brief = await req.payload.findByID({
-                        collection: 'briefs',
-                        id: typeof data.brief === 'object' ? data.brief.id : data.brief
-                    });
-                    if (!brief?.clientEmail) throw new Error('Brief nie ma adresu email klienta.');
-
-                    const cmsUrl = getCmsPublicUrl();
-                    await sendSubscriptionEmail({
-                        to: brief.clientEmail,
-                        companyName: brief.company,
-                        monthlyAmount: data.maintenancePrice,
-                        description: data.maintenanceDescription,
-                        subscribeUrl: `${cmsUrl}/api/quotes/subscribe/${data.quoteToken}`,
-                        portalUrl: `${cmsUrl}/api/quotes/subscription-portal/${data.quoteToken}`,
-                    });
-                    data.subscriptionSentAt = new Date().toISOString();
-                    data.actionSendSubscription = false;
-                }
-
-                if (data.actionSendFinalPayment === true) {
-                    if (data.paymentStatus !== 'paid_half') {
-                        throw new Error('Link do II raty można wysłać dopiero po opłaceniu I raty (50%).');
-                    }
-                    if (!data.brief) throw new Error('Nie można wysłać linku płatności bez powiązanego briefu.');
-                    if (!data.totalPrice || data.totalPrice <= 0) throw new Error('Brak ceny całkowitej w wycenie.');
-
-                    const brief = await req.payload.findByID({
-                        collection: 'briefs',
-                        id: typeof data.brief === 'object' ? data.brief.id : data.brief
-                    });
-                    if (!brief?.clientEmail) throw new Error('Brief nie ma adresu email klienta.');
-
-                    // I rata = zaokrąglone 50%; II rata = dokładna reszta (suma rat = cena całkowita).
-                    const remaining = data.totalPrice - Math.round(data.totalPrice / 2);
-                    await sendFinalPaymentEmail({
-                        to: brief.clientEmail,
-                        companyName: brief.company,
-                        amount: remaining,
-                        payUrl: `${getCmsPublicUrl()}/api/quotes/pay-final/${data.quoteToken}`,
-                    });
-                    data.finalPaymentSentAt = new Date().toISOString();
-                    data.actionSendFinalPayment = false;
-                }
-
-                return data;
-            }
-        ],
+        beforeChange: [quoteBeforeChangeHook],
         afterChange: [
             async ({ doc }) => {
                 return doc;
@@ -443,65 +350,17 @@ export const Quotes: CollectionConfig = {
             path: '/client/:token',
             method: 'get',
             handler: async (req) => {
-                const token = req.routeParams?.token;
-                if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
-
-                const quotes = await req.payload.find({
-                    collection: 'quotes',
-                    where: { quoteToken: { equals: token } },
-                    limit: 1,
-                    depth: 1
-                });
-
-                if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
-
-                const quote = quotes.docs[0];
-                if (quote.status === 'draft') return Response.json({ error: 'Wycena nie jest jeszcze dostępna' }, { status: 404 });
-
-                // Whitelist pól — nie zwracamy pól wewnętrznych (title, actionSend*, orderId)
-                // ani pełnego briefu z PII. Klient dostaje tylko to, co renderuje strona wyceny.
-                // (q jako any — payload-types.ts bywa nieaktualny po dodaniu pól richText.)
-                const q: any = quote;
-                const brief: any = (typeof q.brief === 'object' && q.brief !== null) ? q.brief : {};
-                return Response.json({
-                    status: q.status,
-                    paymentStatus: q.paymentStatus ?? 'unpaid',
-                    totalPrice: q.totalPrice,
-                    maintenancePrice: q.maintenancePrice ?? null,
-                    maintenanceDescription: q.maintenanceDescription ?? null,
-                    clientSelectedMaintenance: q.clientSelectedMaintenance ?? false,
-                    intro: q.intro ?? null,
-                    timelinePlan: q.timelinePlan ?? null,
-                    scopePlan: q.scopePlan ?? null,
-                    brief: {
-                        company: brief.company ?? null,
-                        problemDescription: brief.problemDescription ?? null,
-                    },
-                });
+                const { getClientQuote } = await import('../services/quoteClientService');
+                return getClientQuote(req, req.routeParams?.token as string);
             }
         },
         {
             path: '/client/:token/maintenance',
             method: 'post',
             handler: async (req) => {
-                const token = req.routeParams?.token;
-                if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
-
+                const { updateClientMaintenance } = await import('../services/quoteClientService');
                 const body = await req.json();
-                const quotes = await req.payload.find({
-                    collection: 'quotes',
-                    where: { quoteToken: { equals: token } },
-                    limit: 1
-                });
-                if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
-
-                await req.payload.update({
-                    collection: 'quotes',
-                    id: quotes.docs[0].id,
-                    data: { clientSelectedMaintenance: Boolean(body.wantsMaintenance) }
-                });
-
-                return Response.json({ success: true });
+                return updateClientMaintenance(req, req.routeParams?.token as string, body.wantsMaintenance);
             }
         },
         {
@@ -511,33 +370,9 @@ export const Quotes: CollectionConfig = {
                 if (isRateLimited(req.headers as Headers, { key: 'quote-change', limit: 5, windowMs: 10 * 60 * 1000 })) {
                     return Response.json({ error: 'Zbyt wiele żądań. Spróbuj ponownie później.' }, { status: 429 });
                 }
-                const token = req.routeParams?.token;
-                if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
-
+                const { requestClientChange } = await import('../services/quoteClientService');
                 const body = await req.json();
-                const message = typeof body.message === 'string' ? body.message.trim() : '';
-                if (!message) return Response.json({ error: 'Brak wiadomości' }, { status: 400 });
-                if (message.length > 2000) return Response.json({ error: 'Wiadomość jest zbyt długa (max 2000 znaków).' }, { status: 400 });
-
-                const quotes = await req.payload.find({
-                    collection: 'quotes',
-                    where: { quoteToken: { equals: token } },
-                    limit: 1,
-                    depth: 1
-                });
-                if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
-
-                const quote = quotes.docs[0];
-                await req.payload.update({ collection: 'quotes', id: quote.id, data: { status: 'rejected' } });
-
-                if (typeof quote.brief === 'object' && quote.brief !== null) {
-                    await sendInternalChangeRequestEmail({
-                        company: (quote.brief as any).company,
-                        message
-                    });
-                }
-
-                return Response.json({ success: true });
+                return requestClientChange(req, req.routeParams?.token as string, body.message);
             }
         },
         {
@@ -547,287 +382,42 @@ export const Quotes: CollectionConfig = {
                 if (isRateLimited(req.headers as Headers, { key: 'quote-checkout', limit: 10, windowMs: 10 * 60 * 1000 })) {
                     return Response.json({ error: 'Zbyt wiele żądań. Spróbuj ponownie później.' }, { status: 429 });
                 }
-                const token = req.routeParams?.token;
-                if (!token) return Response.json({ error: 'Brak tokenu' }, { status: 400 });
-
+                const { processCheckout } = await import('../services/quoteCheckoutService');
                 const body = await req.json();
-                const is50Percent = body.paymentModel === '50';
-
-                const quotes = await req.payload.find({
-                    collection: 'quotes',
-                    where: { quoteToken: { equals: token } },
-                    limit: 1,
-                    depth: 1
-                });
-                if (quotes.docs.length === 0) return Response.json({ error: 'Wycena nie znaleziona' }, { status: 404 });
-
-                const quote = quotes.docs[0];
-                const brief: any = quote.brief;
-                if (!quote.totalPrice || !brief || typeof brief !== 'object') {
-                    return Response.json({ error: 'Brak danych do wyceny' }, { status: 400 });
-                }
-
-                // Link płatności dezaktywuje się po opłaceniu — bez tego dało się
-                // płacić wielokrotnie za to samo zamówienie.
-                if (quote.paymentStatus === 'paid_full') {
-                    return Response.json({ error: 'To zamówienie jest już w całości opłacone. Dziękujemy!' }, { status: 409 });
-                }
-                if (quote.paymentStatus === 'paid_half') {
-                    return Response.json({ error: 'I rata jest już opłacona. Link do płatności końcowej otrzymasz od nas mailem.' }, { status: 409 });
-                }
-
-                // ── Clickwrap: wymagana akceptacja dokumentów + oświadczenie odstąpienia ──
-                // (Tylko przy pierwszej płatności; jeśli zgoda już zapisana — nie wymagamy ponownie.)
-                if (!quote.consent?.acceptedAt) {
-                    if (body.acceptTerms !== true || body.acceptAgreement !== true) {
-                        return Response.json({ error: 'Aby kontynuować, zaakceptuj regulamin, politykę prywatności oraz umowę współpracy.' }, { status: 400 });
-                    }
-                    try {
-                        const docsRes = await req.payload.find({ collection: 'documents', limit: 20, depth: 0 });
-                        const acceptedDocs = docsRes.docs
-                            .filter((d: any) => ['umowa-wspolpracy', 'regulamin', 'polityka-prywatnosci'].includes(d.docType))
-                            .map((d: any) => ({ docType: d.docType, version: d.version || '1', contentHash: d.contentHash || '' }));
-                        const hdrs = req.headers as Headers;
-                        const ip = hdrs.get('cf-connecting-ip')
-                            || (hdrs.get('x-forwarded-for') || '').split(',')[0].trim()
-                            || hdrs.get('x-real-ip')
-                            || '';
-                        await req.payload.update({
-                            collection: 'quotes',
-                            id: quote.id,
-                            data: {
-                                consent: {
-                                    acceptedAt: new Date().toISOString(),
-                                    ip,
-                                    email: brief.clientEmail || '',
-                                    agreementAccepted: true,
-                                    documents: { acceptedTerms: true, acceptedAgreement: true, items: acceptedDocs },
-                                }
-                            }
-                        });
-                    } catch (e: any) {
-                        console.error('[Quotes checkout] Błąd zapisu zgód:', e?.message || e);
-                        return Response.json({ error: 'Nie udało się zapisać akceptacji. Spróbuj ponownie.' }, { status: 500 });
-                    }
-                }
-
-                const amountToCharge = is50Percent
-                    ? Math.round(quote.totalPrice / 2)
-                    : Math.round(quote.totalPrice * 0.9);
-
-                try {
-                    const session = await createStripeSession({
-                        payment_method_types: ['card', 'blik', 'p24'],
-                        line_items: [{
-                            price_data: {
-                                currency: 'pln',
-                                product_data: {
-                                    name: `Wycena Projektu — ${brief.company}`,
-                                    description: is50Percent
-                                        ? `I Rata (50%) — ${brief.company}`
-                                        : `Opłata całościowa (–10%) — ${brief.company}`
-                                },
-                                unit_amount: Math.round(amountToCharge * 100)
-                            },
-                            quantity: 1,
-                        }],
-                        mode: 'payment',
-                        success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
-                        cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
-                        customer_email: brief.clientEmail,
-                        // Dane do faktury (adres, telefon, NIP) — wspólna definicja w services/briefs.ts.
-                        ...invoiceDataCollection,
-                        metadata: {
-                            quoteId: String(quote.id),
-                            briefId: String(brief.id),
-                            paymentModel: is50Percent ? '50' : '100',
-                        }
-                    });
-
-                    return Response.json({ url: session.url });
-                } catch (error: any) {
-                    // Nie ujawniamy klientowi szczegółów błędu (SDK/Stripe/infrastruktura).
-                    console.error('[Quotes checkout] Błąd tworzenia sesji Stripe:', error?.message || error);
-                    return Response.json({ error: 'Nie udało się utworzyć sesji płatności. Spróbuj ponownie później.' }, { status: 500 });
-                }
+                return processCheckout(req, req.routeParams?.token as string, body);
             }
         },
         {
-            // Link z maila "Aktywuj subskrypcję" — tworzy świeżą sesję Stripe Checkout
-            // (mode=subscription) i przekierowuje klienta. Sesje wygasają po 24h,
-            // dlatego mail linkuje tutaj, a nie bezpośrednio do session.url.
             path: '/subscribe/:token',
             method: 'get',
             handler: async (req) => {
                 if (isRateLimited(req.headers as Headers, { key: 'quote-subscribe', limit: 10, windowMs: 10 * 60 * 1000 })) {
                     return new Response('Zbyt wiele żądań. Spróbuj ponownie później.', { status: 429 });
                 }
-                const token = req.routeParams?.token;
-                if (!token) return new Response('Brak tokenu', { status: 400 });
-
-                const quotes = await req.payload.find({
-                    collection: 'quotes',
-                    where: { quoteToken: { equals: token } },
-                    limit: 1,
-                    depth: 1
-                });
-                if (quotes.docs.length === 0) return new Response('Nie znaleziono wyceny', { status: 404 });
-
-                const quote: any = quotes.docs[0];
-                const brief: any = quote.brief;
-                if (!quote.maintenancePrice || quote.maintenancePrice <= 0 || !brief || typeof brief !== 'object') {
-                    return new Response('Subskrypcja nie jest dostępna dla tej wyceny.', { status: 400 });
-                }
-                // Subskrypcja już działa — zamiast drugiej płatności kierujemy do portalu zarządzania.
-                if (quote.subscriptionStatus === 'active' && quote.stripeCustomerId) {
-                    return Response.redirect(`${getCmsPublicUrl()}/api/quotes/subscription-portal/${token}`, 303);
-                }
-
-                try {
-                    const session = await createStripeSession({
-                        mode: 'subscription',
-                        // Płatności cykliczne: tylko karta (BLIK/P24 nie wspierają subskrypcji).
-                        payment_method_types: ['card'],
-                        line_items: [{
-                            price_data: {
-                                currency: 'pln',
-                                recurring: { interval: 'month' },
-                                product_data: {
-                                    name: `Utrzymanie i opieka techniczna — ${brief.company}`,
-                                    ...(quote.maintenanceDescription
-                                        ? { description: String(quote.maintenanceDescription).slice(0, 500) }
-                                        : {}),
-                                },
-                                unit_amount: Math.round(quote.maintenancePrice * 100),
-                            },
-                            quantity: 1,
-                        }],
-                        customer_email: brief.clientEmail,
-                        ...invoiceDataCollection,
-                        // Metadata na subskrypcji — webhook invoice.paid odczytuje z niej quoteId.
-                        subscription_data: {
-                            metadata: {
-                                quoteId: String(quote.id),
-                                briefId: String(brief.id),
-                            }
-                        },
-                        metadata: {
-                            quoteId: String(quote.id),
-                            briefId: String(brief.id),
-                            paymentModel: 'subscription',
-                        },
-                        success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
-                        cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
-                    });
-
-                    if (!session.url) throw new Error('Stripe nie zwrócił URL sesji.');
-                    return Response.redirect(session.url, 303);
-                } catch (error: any) {
-                    console.error('[Quotes subscribe] Błąd tworzenia sesji subskrypcji:', error?.message || error);
-                    return new Response('Nie udało się rozpocząć subskrypcji. Spróbuj ponownie później.', { status: 500 });
-                }
+                const { processSubscribe } = await import('../services/quoteCheckoutService');
+                return processSubscribe(req, req.routeParams?.token as string);
             }
         },
         {
-            // Link z maila "Opłać II ratę" — świeża sesja Stripe na pozostałe 50%
-            // (sesje wygasają po 24h, dlatego mail linkuje tutaj).
             path: '/pay-final/:token',
             method: 'get',
             handler: async (req) => {
                 if (isRateLimited(req.headers as Headers, { key: 'quote-pay-final', limit: 10, windowMs: 10 * 60 * 1000 })) {
                     return new Response('Zbyt wiele żądań. Spróbuj ponownie później.', { status: 429 });
                 }
-                const token = req.routeParams?.token;
-                if (!token) return new Response('Brak tokenu', { status: 400 });
-
-                const quotes = await req.payload.find({
-                    collection: 'quotes',
-                    where: { quoteToken: { equals: token } },
-                    limit: 1,
-                    depth: 1
-                });
-                if (quotes.docs.length === 0) return new Response('Nie znaleziono wyceny', { status: 404 });
-
-                const quote: any = quotes.docs[0];
-                const brief: any = quote.brief;
-                if (!quote.totalPrice || !brief || typeof brief !== 'object') {
-                    return new Response('Brak danych do płatności.', { status: 400 });
-                }
-                if (quote.paymentStatus === 'paid_full') {
-                    return new Response('Zamówienie jest już w pełni opłacone. Dziękujemy!', { status: 200 });
-                }
-                if (quote.paymentStatus !== 'paid_half') {
-                    return new Response('Płatność II raty będzie dostępna po zaksięgowaniu I raty.', { status: 400 });
-                }
-
-                const remaining = quote.totalPrice - Math.round(quote.totalPrice / 2);
-
-                try {
-                    const session = await createStripeSession({
-                        mode: 'payment',
-                        payment_method_types: ['card', 'blik', 'p24'],
-                        line_items: [{
-                            price_data: {
-                                currency: 'pln',
-                                product_data: {
-                                    name: `Wycena Projektu — ${brief.company}`,
-                                    description: `II Rata (płatność końcowa) — ${brief.company}`
-                                },
-                                unit_amount: Math.round(remaining * 100)
-                            },
-                            quantity: 1,
-                        }],
-                        customer_email: brief.clientEmail,
-                        ...invoiceDataCollection,
-                        metadata: {
-                            quoteId: String(quote.id),
-                            briefId: String(brief.id),
-                            paymentModel: 'final50',
-                        },
-                        success_url: process.env.STRIPE_SUCCESS_URL || 'http://localhost:4321/dziekujemy?session_id={CHECKOUT_SESSION_ID}',
-                        cancel_url: process.env.STRIPE_CANCEL_URL || 'http://localhost:4321/blad-platnosci',
-                    });
-
-                    if (!session.url) throw new Error('Stripe nie zwrócił URL sesji.');
-                    return Response.redirect(session.url, 303);
-                } catch (error: any) {
-                    console.error('[Quotes pay-final] Błąd tworzenia sesji II raty:', error?.message || error);
-                    return new Response('Nie udało się rozpocząć płatności. Spróbuj ponownie później.', { status: 500 });
-                }
+                const { processPayFinal } = await import('../services/quoteCheckoutService');
+                return processPayFinal(req, req.routeParams?.token as string);
             }
         },
         {
-            // Stripe Billing Portal — klient samodzielnie zarządza subskrypcją
-            // (anulowanie, zmiana karty, historia faktur).
             path: '/subscription-portal/:token',
             method: 'get',
             handler: async (req) => {
                 if (isRateLimited(req.headers as Headers, { key: 'quote-portal', limit: 10, windowMs: 10 * 60 * 1000 })) {
                     return new Response('Zbyt wiele żądań. Spróbuj ponownie później.', { status: 429 });
                 }
-                const token = req.routeParams?.token;
-                if (!token) return new Response('Brak tokenu', { status: 400 });
-
-                const quotes = await req.payload.find({
-                    collection: 'quotes',
-                    where: { quoteToken: { equals: token } },
-                    limit: 1
-                });
-                if (quotes.docs.length === 0) return new Response('Nie znaleziono wyceny', { status: 404 });
-
-                const quote: any = quotes.docs[0];
-                if (!quote.stripeCustomerId) {
-                    return new Response('Subskrypcja nie została jeszcze aktywowana — najpierw skorzystaj z linku aktywacyjnego.', { status: 404 });
-                }
-
-                try {
-                    const returnUrl = (process.env.FRONTEND_URL || 'https://nobelion.pl').replace(/\/$/, '');
-                    const portal = await createBillingPortalSession(quote.stripeCustomerId, returnUrl);
-                    return Response.redirect(portal.url, 303);
-                } catch (error: any) {
-                    console.error('[Quotes portal] Błąd tworzenia sesji portalu:', error?.message || error);
-                    return new Response('Nie udało się otworzyć panelu subskrypcji. Spróbuj ponownie później.', { status: 500 });
-                }
+                const { createPortalSession } = await import('../services/quoteCheckoutService');
+                return createPortalSession(req, req.routeParams?.token as string);
             }
         }
     ],

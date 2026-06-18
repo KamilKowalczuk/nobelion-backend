@@ -1,3 +1,10 @@
+export class FakturaXlError extends Error {
+    constructor(message: string, public code?: string | null, public rawResponse?: string) {
+        super(message);
+        this.name = 'FakturaXlError';
+    }
+}
+
 export const issueInvoice = async ({
     email,
     companyName,
@@ -11,8 +18,8 @@ export const issueInvoice = async ({
     description
 }: {
     email: string;
-    companyName?: string;   // nazwa firmy — decyduje o typie nabywcy
-    buyerName?: string;     // imię i nazwisko osoby (gdy brak firmy)
+    companyName?: string;
+    buyerName?: string;
     nip?: string;
     street?: string;
     postCode?: string;
@@ -21,35 +28,22 @@ export const issueInvoice = async ({
     amountGross: number;
     description: string;
 }) => {
-    // Trim — biały znak/nowa linia w tokenie z env powoduje "kod 3 = nie istnieje taki api_token".
     const token = (process.env.FAKTURAXL_API_TOKEN || '').trim();
     if (!token) {
-        console.warn('Brak tokenu FAKTURAXL_API_TOKEN. Pominięto wystawienie faktury.');
-        return null;
+        throw new FakturaXlError('Brak tokenu FAKTURAXL_API_TOKEN. Pominięto wystawienie faktury.');
     }
 
     const today = new Date().toISOString().split('T')[0];
-
-    // Typ nabywcy decyduje obecność NAZWY FIRMY: jest firma → faktura na firmę
-    // (nazwa + NIP), brak → osoba prywatna (imię i nazwisko z buyerName).
     const isCompany = !!(companyName && companyName.trim());
 
-    // ── Zwolnienie z VAT ──
-    // Firma korzysta ze zwolnienia podmiotowego — stawka 'zw', brak naliczonego VAT.
-    // Konfigurowalne: FAKTURAXL_VAT_RATE (domyślnie 'zw'), podstawa prawna w uwagach.
     const vatRate = process.env.FAKTURAXL_VAT_RATE || 'zw';
     const isVatExempt = vatRate === 'zw';
     const exemptionBasis = process.env.FAKTURAXL_VAT_EXEMPTION_BASIS
         || 'Zwolnienie podmiotowe z VAT na podstawie art. 113 ust. 1 ustawy o VAT.';
 
-    // "Stripe" NIE jest dozwoloną wartością rodzaj_platnosci (→ kod 18). Lista dopuszczalnych:
-    // Przelew, Karta płatnicza, BLIK, Płatność elektroniczna, Przelewy24, PayU... Domyślnie elektroniczna.
     const paymentMethod = process.env.FAKTURAXL_PAYMENT_METHOD || 'Płatność elektroniczna';
-
-    // CDATA przenosi tekst dosłownie — nie escape'ujemy, jedynie neutralizujemy sekwencję "]]>".
     const cdata = (v?: string) => `<![CDATA[${(v || '').replace(/]]>/g, ']]]]><![CDATA[>')}]]>`;
 
-    // Osoba prywatna wymaga imienia i nazwiska (kod 38/39) — bierzemy z buyerName.
     const [firstName, ...rest] = (buyerName || '').trim().split(/\s+/);
     const lastName = rest.join(' ');
 
@@ -95,6 +89,7 @@ ${nabywcaXml}
 </dokument>
     `.trim();
 
+    let responseText: string;
     try {
         const response = await fetch('https://program.fakturaxl.pl/api/dokument_dodaj.php', {
             method: 'POST',
@@ -103,59 +98,47 @@ ${nabywcaXml}
             },
             body: xmlData
         });
+        responseText = await response.text();
+    } catch (err: any) {
+        throw new FakturaXlError(`Błąd sieciowy podczas wystawiania faktury: ${err.message}`);
+    }
 
-        const responseText = await response.text();
+    const kodMatch = responseText.match(/<kod>(.*?)<\/kod>/);
+    const kod = kodMatch ? kodMatch[1] : null;
 
-        // Zgrubne parsowanie XML za pomocą RegExp (unikanie ciężkich bibliotek do XML w prostym przypadku)
-        const kodMatch = responseText.match(/<kod>(.*?)<\/kod>/);
-        const kod = kodMatch ? kodMatch[1] : null;
+    if (kod === '1') {
+        const idMatch = responseText.match(/<dokument_id>(.*?)<\/dokument_id>/);
+        const nrMatch = responseText.match(/<dokument_nr>(.*?)<\/dokument_nr>/);
 
-        if (kod === '1') {
-            const idMatch = responseText.match(/<dokument_id>(.*?)<\/dokument_id>/);
-            const nrMatch = responseText.match(/<dokument_nr>(.*?)<\/dokument_nr>/);
-
-            return {
-                success: true,
-                invoiceId: idMatch ? idMatch[1] : null,
-                invoiceNumber: nrMatch ? nrMatch[1] : null,
-                rawResponse: responseText
-            };
-        } else {
-            // Mapa najczęstszych kodów błędów (z dokumentacji FakturaXL).
-            const ERRORS: Record<string, string> = {
-                '2': 'Przekroczono limit zapytań — spróbuj później',
-                '3': 'Nieprawidłowy api_token (sprawdź FAKTURAXL_API_TOKEN — bez spacji/nowej linii, z właściwego konta)',
-                '8': 'Nie istnieje taki id_dzialy_firmy',
-                '9': 'Nazwa nabywcy nie może być pusta',
-                '10': 'Nieprawidłowy NIP',
-                '11': 'Błędny kraj',
-                '13': 'Data musi mieć format yyyy-mm-dd',
-                '18': 'Błędny rodzaj_platnosci (ustaw dozwoloną wartość, np. „Płatność elektroniczna")',
-                '19': 'Limit darmowych faktur osiągnięty — wymagany Pakiet Pełny',
-                '38': 'Imię nabywcy nie może być puste (osoba prywatna)',
-                '39': 'Nazwisko nabywcy nie może być puste (osoba prywatna)',
-                '70': 'Klucz API został zablokowany — kontakt z FakturaXL',
-            };
-            const hint = kod && ERRORS[kod] ? ` → ${ERRORS[kod]}` : '';
-            console.error(`[FakturaXL] Błąd wystawiania (kod ${kod})${hint}:`, responseText);
-            return {
-                success: false,
-                error: responseText
-            };
-        }
-
-    } catch (err) {
-        console.error('[FakturaXL] Wyjątek podczas wystawiania faktury:', err);
-        return { success: false, error: String(err) };
+        return {
+            success: true,
+            invoiceId: idMatch ? idMatch[1] : null,
+            invoiceNumber: nrMatch ? nrMatch[1] : null,
+            rawResponse: responseText
+        };
+    } else {
+        const ERRORS: Record<string, string> = {
+            '2': 'Przekroczono limit zapytań — spróbuj później',
+            '3': 'Nieprawidłowy api_token (sprawdź FAKTURAXL_API_TOKEN — bez spacji/nowej linii, z właściwego konta)',
+            '8': 'Nie istnieje taki id_dzialy_firmy',
+            '9': 'Nazwa nabywcy nie może być pusta',
+            '10': 'Nieprawidłowy NIP',
+            '11': 'Błędny kraj',
+            '13': 'Data musi mieć format yyyy-mm-dd',
+            '18': 'Błędny rodzaj_platnosci (ustaw dozwoloną wartość, np. „Płatność elektroniczna")',
+            '19': 'Limit darmowych faktur osiągnięty — wymagany Pakiet Pełny',
+            '38': 'Imię nabywcy nie może być puste (osoba prywatna)',
+            '39': 'Nazwisko nabywcy nie może być puste (osoba prywatna)',
+            '70': 'Klucz API został zablokowany — kontakt z FakturaXL',
+        };
+        const hint = kod && ERRORS[kod] ? ` → ${ERRORS[kod]}` : '';
+        throw new FakturaXlError(`Błąd wystawiania faktury (kod ${kod})${hint}`, kod, responseText);
     }
 };
 
-// Pobiera PDF faktury (endpoint pdf_p.php zwraca XML z base64 w <pdf>).
-// Fakturę wysyłamy klientowi sami, brandowanym mailem z załącznikiem —
-// dlatego wyslij_dokument_do_klienta_emailem=0 przy wystawianiu.
-export const downloadInvoicePdf = async (invoiceId: string): Promise<Buffer | null> => {
+export const downloadInvoicePdf = async (invoiceId: string): Promise<Buffer> => {
     const token = process.env.FAKTURAXL_API_TOKEN;
-    if (!token) return null;
+    if (!token) throw new FakturaXlError('Brak tokenu FAKTURAXL_API_TOKEN. Pominięto pobieranie PDF.');
 
     const xmlData = `
 <dokument>
@@ -164,21 +147,21 @@ export const downloadInvoicePdf = async (invoiceId: string): Promise<Buffer | nu
 </dokument>
     `.trim();
 
+    let responseText: string;
     try {
         const response = await fetch('https://program.fakturaxl.pl/api/pdf_p.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/xml' },
             body: xmlData
         });
-        const responseText = await response.text();
-        const pdfMatch = responseText.match(/<pdf>([\s\S]*?)<\/pdf>/);
-        if (!pdfMatch || !pdfMatch[1]) {
-            console.error('[FakturaXL] Brak PDF w odpowiedzi pdf_p.php:', responseText.slice(0, 300));
-            return null;
-        }
-        return Buffer.from(pdfMatch[1].trim(), 'base64');
-    } catch (err) {
-        console.error('[FakturaXL] Wyjątek podczas pobierania PDF:', err);
-        return null;
+        responseText = await response.text();
+    } catch (err: any) {
+        throw new FakturaXlError(`Błąd sieciowy podczas pobierania PDF faktury: ${err.message}`);
     }
+
+    const pdfMatch = responseText.match(/<pdf>([\s\S]*?)<\/pdf>/);
+    if (!pdfMatch || !pdfMatch[1]) {
+        throw new FakturaXlError('Brak PDF w odpowiedzi pdf_p.php', null, responseText);
+    }
+    return Buffer.from(pdfMatch[1].trim(), 'base64');
 };
