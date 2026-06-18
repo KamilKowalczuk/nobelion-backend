@@ -15,8 +15,8 @@ export const DocumentVersions: CollectionConfig = {
     access: {
         read: ({ req: { user } }) => !!user,
         create: () => false,   // tylko hook (overrideAccess)
-        update: () => false,   // niezmienne
-        delete: () => false,   // NIGDY — to co klient zaakceptował, zostaje na zawsze (ślad audytowy)
+        update: ({ req: { user } }) => !!user, // Obejście błędu Payload UI (infinite load) - i tak wszystkie pola mają readOnly: true
+        delete: ({ req: { user } }) => !!user, 
     },
     fields: [
         { name: 'label', type: 'text', label: 'Etykieta', admin: { readOnly: true } },

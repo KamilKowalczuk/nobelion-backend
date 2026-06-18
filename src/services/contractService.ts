@@ -96,13 +96,15 @@ export async function processContractForQuote(quote: any, payload: Payload): Pro
         }
     });
 
-    // Zaktualizuj Quote (musimy dodać pole generatedContractPdf do Quotes.ts)
+    // Zaktualizuj Quote
     await payload.update({
         collection: 'quotes',
         id: quote.id,
         data: {
-            // @ts-ignore - pole zaraz dodamy w konfiguracji
-            'consent.generatedContractPdf': mediaDoc.id
+            consent: {
+                ...(quote.consent || {}),
+                generatedContractPdf: mediaDoc.id
+            }
         }
     });
 
