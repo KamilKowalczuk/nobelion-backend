@@ -1,10 +1,12 @@
 import puppeteer from 'puppeteer';
 import MarkdownIt from 'markdown-it';
+import fs from 'fs';
+import path from 'path';
 
 const md = new MarkdownIt({ html: true, breaks: true });
 
 // Szablon CSS premium dla umów
-const getPdfTemplate = (contentHtml: string) => `
+const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -14,16 +16,21 @@ const getPdfTemplate = (contentHtml: string) => `
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Cinzel:wght@600;700&display=swap');
         
         :root {
-            --color-ink: #080b10;
-            --color-ink-2: #1e2330;
-            --color-ink-3: #3b4255;
-            --color-paper: #ffffff;
-            --color-brass: #b8893e;
-            --color-hair-ink: #eaeaea;
+            --color-ink: #15171D;
+            --color-ink-2: #34383F;
+            --color-ink-3: #6A6E78;
+            --color-paper: #F7F4ED;
+            --color-brass: #B8893E;
+            --color-hair-ink: rgba(21,23,29,0.10);
+            --font-heading: 'Cinzel', serif;
+            --font-sans: 'Manrope', sans-serif;
+            --r-control: 9px;
+            --r-card: 14px;
+            --r-shell: 18px;
         }
 
         body {
-            font-family: 'Manrope', sans-serif;
+            font-family: var(--font-sans);
             font-size: 10pt;
             line-height: 1.6;
             color: var(--color-ink-2);
@@ -40,18 +47,15 @@ const getPdfTemplate = (contentHtml: string) => `
             border-bottom: 2px solid var(--color-brass);
         }
         
-        .logo {
-            font-family: 'Cinzel', serif;
-            font-size: 24pt;
-            font-weight: 700;
-            color: var(--color-ink);
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
+        .logo-img {
+            max-width: 200px;
+            height: auto;
+            margin-bottom: 20px;
         }
 
         /* Typografia Markdown */
         h1 {
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-heading);
             font-size: 16pt;
             color: var(--color-brass);
             text-align: center;
@@ -61,7 +65,7 @@ const getPdfTemplate = (contentHtml: string) => `
         }
 
         h2 {
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-heading);
             font-size: 13pt;
             color: var(--color-ink);
             margin: 30px 0 15px;
@@ -85,23 +89,28 @@ const getPdfTemplate = (contentHtml: string) => `
             border-collapse: collapse;
             margin: 20px 0;
             page-break-inside: avoid;
+            background-color: #FFFFFF; /* Czysta biel dla kontrastu tabeli na tle F7F4ED */
+            border-radius: var(--r-card);
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(21,23,29,0.04);
         }
 
         th {
-            background-color: #f8f9fa;
-            color: var(--color-ink);
+            background-color: var(--color-ink);
+            color: #FFFFFF;
             font-size: 9pt;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            padding: 10px;
-            border-bottom: 2px solid var(--color-brass);
+            padding: 12px 15px;
+            border-bottom: 3px solid var(--color-brass);
             text-align: left;
         }
 
         td {
-            padding: 10px;
+            padding: 12px 15px;
             border-bottom: 1px solid var(--color-hair-ink);
             vertical-align: top;
+            color: var(--color-ink-2);
         }
 
         tr:last-child td {
@@ -111,9 +120,10 @@ const getPdfTemplate = (contentHtml: string) => `
         /* Certyfikat Akceptacji */
         .certificate-section {
             margin-top: 40px;
-            padding: 20px;
+            padding: 25px;
             border: 1px solid var(--color-brass);
-            background-color: rgba(184, 137, 62, 0.02);
+            background-color: rgba(184, 137, 62, 0.04);
+            border-radius: var(--r-card);
             page-break-inside: avoid;
         }
         
@@ -144,7 +154,7 @@ const getPdfTemplate = (contentHtml: string) => `
 </head>
 <body>
     <div class="header">
-        <div class="logo">NOBELION</div>
+        ${logoSrc ? `<img src="${logoSrc}" class="logo-img" alt="Nobelion" />` : `<div style="font-size: 24pt; font-weight: bold;">NOBELION</div>`}
     </div>
     
     <div class="content">
@@ -155,16 +165,39 @@ const getPdfTemplate = (contentHtml: string) => `
 `;
 
 export async function generateContractPdf(markdownContent: string, dataParams: Record<string, string | number>): Promise<Buffer> {
+    // 0. Czyszczenie Markdown ze znaczników sekcji np. "--- Część 3 ---"
+    let cleanedMarkdown = markdownContent.replace(/^.*Część\s*\d+.*$/gim, '');
+    
+    // Obsługa warunkowego bloku [IF_MAINTENANCE] ... [/IF_MAINTENANCE]
+    if (String(dataParams.HAS_SUBSCRIPTION) === 'false') {
+        // Usuń cały blok wraz z zawartością, jeśli klient nie wybrał utrzymania
+        cleanedMarkdown = cleanedMarkdown.replace(/\[IF_MAINTENANCE\][\s\S]*?\[\/IF_MAINTENANCE\]/gi, '');
+    } else {
+        // Usuń same znaczniki, zostawiając zawartość
+        cleanedMarkdown = cleanedMarkdown.replace(/\[\/?IF_MAINTENANCE\]/gi, '');
+    }
+
     // 1. Zamiana tagów na wartości z obiektu dataParams
-    let personalizedMarkdown = markdownContent;
+    let personalizedMarkdown = cleanedMarkdown;
     for (const [key, value] of Object.entries(dataParams)) {
         const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
         personalizedMarkdown = personalizedMarkdown.replace(regex, String(value || '---'));
     }
 
-    // 2. Renderowanie Markdown do HTML
+    // 2. Wczytywanie logo i renderowanie do HTML
+    let logoSrc = '';
+    try {
+        const logoPath = path.join(process.cwd(), 'public', 'logo.png');
+        if (fs.existsSync(logoPath)) {
+            const base64 = fs.readFileSync(logoPath, 'base64');
+            logoSrc = `data:image/png;base64,${base64}`;
+        }
+    } catch(e) {
+        console.error('Błąd ładowania logo w PDF:', e);
+    }
+
     const htmlContent = md.render(personalizedMarkdown);
-    const fullHtml = getPdfTemplate(htmlContent);
+    const fullHtml = getPdfTemplate(htmlContent, logoSrc);
 
     // 3. Konfiguracja Puppeteer (w Dockerze Alpine potrzebuje executablePath, lokalnie zadziała bez)
     const browser = await puppeteer.launch({

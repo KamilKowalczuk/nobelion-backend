@@ -40,6 +40,15 @@ export async function processContractForQuote(quote: any, payload: Payload): Pro
         brief = await payload.findByID({ collection: 'briefs', id: brief });
     }
 
+    // Pobierz nowo wygenerowane Zamówienie powiązane z tą wyceną (Stripe Invoice Data)
+    let orderDoc: any = null;
+    if (quote.orderId) {
+        orderDoc = await payload.findByID({
+            collection: 'orders',
+            id: typeof quote.orderId === 'object' ? quote.orderId.id : quote.orderId
+        });
+    }
+
     // Znalezienie wybranego modelu
     let paymentModelLabel = 'Płatność jednorazowa z rabatem 10%';
     let paymentScheduleDetails = `Opłacono w całości kwotę ${Math.round(quote.totalPrice * 0.9)} PLN netto.`;
@@ -58,21 +67,32 @@ export async function processContractForQuote(quote: any, payload: Payload): Pro
         markdownContent = markdownContent.substring(0, certIndex) + '\\n<div class="certificate-section">\\n' + markdownContent.substring(certIndex) + '\\n</div>';
     }
 
+    // Logika profilu klienta: Jeśli wpisał NIP i nazwę firmy -> B2B, w przeciwnym razie Osoba Prywatna.
+    const isB2B = !!(orderDoc?.billingNip && orderDoc?.billingCompanyName);
+    const clientNameStr = isB2B ? orderDoc.billingCompanyName : (orderDoc?.billingName || brief.clientName || 'Klient');
+    const clientAddressStr = orderDoc 
+        ? `${orderDoc.billingStreet || ''}, ${orderDoc.billingPostalCode || ''} ${orderDoc.billingCity || ''}`
+        : `${brief.street || ''}, ${brief.postalCode || ''} ${brief.city || ''}`;
+    const taxIdLine = isB2B ? `NIP: ${orderDoc.billingNip}` : 'Konsument';
+    const representativeLine = isB2B ? `reprezentowana przez: ${orderDoc.billingName}` : '';
+    const signerRoleStr = isB2B ? 'Reprezentant firmy' : 'Osoba prywatna';
+
     const dataParams = {
-        CLIENT_NAME: brief.company || 'Klient',
-        CLIENT_ADDRESS: `${brief.street || ''}, ${brief.postalCode || ''} ${brief.city || ''}`,
-        CLIENT_TAX_ID_LINE: brief.nip ? `NIP: ${brief.nip}` : 'Konsument',
-        CLIENT_REPRESENTATIVE_LINE: brief.nip ? `reprezentowana przez upoważnioną osobę` : '',
+        CLIENT_NAME: clientNameStr,
+        CLIENT_ADDRESS: clientAddressStr,
+        CLIENT_TAX_ID_LINE: taxIdLine,
+        CLIENT_REPRESENTATIVE_LINE: representativeLine,
         QUOTE_ID: String(quote.id),
-        ORDER_ID: quote.orderId ? String(typeof quote.orderId === 'object' ? quote.orderId.id : quote.orderId) : 'W trakcie',
-        SCOPE_SUMMARY: `Wdrożenie systemu wg wyceny "${quote.title || 'Nobelion'}"`,
+        ORDER_ID: orderDoc?.orderNumber || 'W trakcie',
+        SCOPE_SUMMARY: `Realizacja usług programistycznych i wdrożeniowych zgodnie z zaakceptowanym zakresem prac`,
         TOTAL_PRICE: quote.totalPrice,
         PAYMENT_MODEL_LABEL: paymentModelLabel,
         PAYMENT_SCHEDULE_DETAILS: paymentScheduleDetails,
         SUBSCRIPTION_STATUS: subscriptionStatus,
-        SIGNER_NAME: brief.clientName || brief.company || 'Klient',
+        HAS_SUBSCRIPTION: Boolean(quote.clientSelectedMaintenance).toString(),
+        SIGNER_NAME: orderDoc?.billingName || brief.clientName || 'Klient',
         SIGNER_EMAIL: quote.consent.email,
-        SIGNER_ROLE: brief.nip ? 'Reprezentant firmy' : 'Osoba prywatna',
+        SIGNER_ROLE: signerRoleStr,
         ACCEPTANCE_TIMESTAMP: new Date(quote.consent.acceptedAt).toLocaleString('pl-PL'),
         IP_ADDRESS: quote.consent.ip,
         CONTRACT_VERSION: umowaConsent.version || '1',
