@@ -36,21 +36,21 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
             color: var(--color-ink-2);
             background: var(--color-paper);
             margin: 0;
-            padding: 40px;
+            padding: 25px 40px; /* Zmniejszono padding pionowy, aby zmieścić tabelę */
         }
 
         /* Branding i nagłówek */
         .header {
             text-align: center;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
+            margin-bottom: 20px; /* Zmniejszono margines */
+            padding-bottom: 10px; /* Zmniejszono padding */
             border-bottom: 2px solid var(--color-brass);
         }
         
         .logo-img {
             max-width: 200px;
             height: auto;
-            margin-bottom: 20px;
+            margin-bottom: 10px; /* Zmniejszono margines */
         }
 
         /* Typografia Markdown */
@@ -59,16 +59,17 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
             font-size: 16pt;
             color: var(--color-brass);
             text-align: center;
-            margin: 40px 0 20px;
+            margin-bottom: 15px; /* Zmniejszono margines */
+            margin-top: 0;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
         h2 {
             font-family: var(--font-heading);
-            font-size: 13pt;
+            font-size: 11pt;
             color: var(--color-ink);
-            margin: 30px 0 15px;
+            margin: 20px 0 10px; /* Zmniejszono marginesy, aby oszczędzić miejsce */
             border-bottom: 1px solid var(--color-hair-ink);
             padding-bottom: 5px;
         }
@@ -86,12 +87,12 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
         /* Tabele */
         table {
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             margin: 20px 0;
             page-break-inside: auto;
             background-color: #FFFFFF;
             border-radius: var(--r-card);
-            overflow: hidden;
             border: 1px solid var(--color-hair-ink);
         }
         
@@ -113,6 +114,14 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
             padding: 12px 15px;
             border-bottom: 3px solid var(--color-brass);
             text-align: left;
+        }
+        
+        thead tr:first-child th:first-child {
+            border-top-left-radius: calc(var(--r-card) - 1px);
+        }
+        
+        thead tr:first-child th:last-child {
+            border-top-right-radius: calc(var(--r-card) - 1px);
         }
 
         td {
@@ -208,7 +217,14 @@ export async function generateContractPdf(markdownContent: string, dataParams: R
         console.error('Błąd ładowania logo w PDF:', e);
     }
 
-    const htmlContent = md.render(personalizedMarkdown);
+    let htmlContent = md.render(personalizedMarkdown);
+
+    // Wymuszone łamanie stron dla paragrafów 6 i 11 oraz Części III
+    // Wyrażenie regularne łapie nagłówki (h1-h6) lub paragrafy (p), które zaczynają się od "§ 6.", "§ 11." lub "CZĘŚĆ III"
+    htmlContent = htmlContent.replace(/(<(h[1-6]|p)[^>]*>(?:<[^>]+>|\s)*§\s*6\..*?<\/\2>)/gi, '<div style="page-break-before: always;"></div>\n$1');
+    htmlContent = htmlContent.replace(/(<(h[1-6]|p)[^>]*>(?:<[^>]+>|\s)*§\s*11\..*?<\/\2>)/gi, '<div style="page-break-before: always;"></div>\n$1');
+    htmlContent = htmlContent.replace(/(<(h[1-6]|p)[^>]*>(?:<[^>]+>|\s)*CZĘŚĆ III.*?<\/\2>)/gi, '<div style="page-break-before: always;"></div>\n$1');
+
     const fullHtml = getPdfTemplate(htmlContent, logoSrc);
 
     // 3. Konfiguracja Puppeteer (w Dockerze Alpine potrzebuje executablePath, lokalnie zadziała bez)
