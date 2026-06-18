@@ -19,7 +19,7 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
             --color-ink: #15171D;
             --color-ink-2: #34383F;
             --color-ink-3: #6A6E78;
-            --color-paper: #F7F4ED;
+            --color-paper: #FFFFFF; /* Czysta biel dla wydruku */
             --color-brass: #B8893E;
             --color-hair-ink: rgba(21,23,29,0.10);
             --font-heading: 'Cinzel', serif;
@@ -89,10 +89,10 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
             border-collapse: collapse;
             margin: 20px 0;
             page-break-inside: avoid;
-            background-color: #FFFFFF; /* Czysta biel dla kontrastu tabeli na tle F7F4ED */
+            background-color: #FFFFFF;
             border-radius: var(--r-card);
             overflow: hidden;
-            box-shadow: 0 1px 2px rgba(21,23,29,0.04);
+            border: 1px solid var(--color-hair-ink);
         }
 
         th {
@@ -117,14 +117,13 @@ const getPdfTemplate = (contentHtml: string, logoSrc: string) => `
             border-bottom: none;
         }
 
-        /* Certyfikat Akceptacji */
-        .certificate-section {
-            margin-top: 40px;
-            padding: 25px;
-            border: 1px solid var(--color-brass);
-            background-color: rgba(184, 137, 62, 0.04);
-            border-radius: var(--r-card);
-            page-break-inside: avoid;
+        /* Zmienne z Payload (oznaczone w backtickach w Markdown) */
+        code {
+            font-family: inherit;
+            font-weight: 700;
+            color: var(--color-ink);
+            background: none;
+            padding: 0;
         }
         
         .certificate-section h1 {

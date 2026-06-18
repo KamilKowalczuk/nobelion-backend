@@ -61,12 +61,6 @@ export async function processContractForQuote(quote: any, payload: Payload): Pro
         ? `TAK — ${quote.maintenancePrice} PLN netto / mc, rozpoczęcie po końcowym odbiorze`
         : `NIE wybrano`;
 
-    // Ustawienie Part III w divie certyfikatu
-    const certIndex = markdownContent.indexOf('# CZĘŚĆ III — CERTYFIKAT AKCEPTACJI');
-    if (certIndex !== -1) {
-        markdownContent = markdownContent.substring(0, certIndex) + '\\n<div class="certificate-section">\\n' + markdownContent.substring(certIndex) + '\\n</div>';
-    }
-
     // Logika profilu klienta: Jeśli wpisał NIP i nazwę firmy -> B2B, w przeciwnym razie Osoba Prywatna.
     const isB2B = !!(orderDoc?.billingNip && orderDoc?.billingCompanyName);
     const clientNameStr = isB2B ? orderDoc.billingCompanyName : (orderDoc?.billingName || brief.clientName || 'Klient');
