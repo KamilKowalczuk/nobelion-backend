@@ -1,0 +1,361 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Umowa Współpracy</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=JetBrains+Mono:wght@400;600&family=Manrope:wght@400;500;600;700&display=swap');
+        
+        :root {
+            --color-ink: #15171D;
+            --color-ink-2: #34383F;
+            --color-ink-3: #6A6E78;
+            --color-paper: #FFFFFF; /* Czysta biel tła całej strony */
+            --color-paper-edge: #E7E0D2; /* Złagodzone ramki komponentów */
+            --color-brass: #B8893E;
+            --color-hair-ink: rgba(21,23,29,0.10);
+            --font-heading: 'Cinzel', serif;
+            --font-sans: 'Manrope', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --r-control: 9px;
+            --r-card: 14px;
+            --tracking-cinematic: 0.14em;
+            --tracking-mono-cap: 0.24em;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            font-size: 10pt;
+            line-height: 1.6;
+            color: var(--color-ink-2);
+            background: var(--color-paper);
+            margin: 0;
+            padding: 25px 40px; 
+        }
+
+        /* Branding i nagłówek */
+        .header {
+            text-align: center;
+            margin-bottom: 20px; 
+            padding-bottom: 10px; 
+        }
+        
+        .logo-img {
+            max-width: 140px;
+            height: auto;
+            margin-bottom: 6px; 
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .header-title {
+            font-family: var(--font-heading);
+            font-size: 14pt;
+            letter-spacing: var(--tracking-cinematic);
+            color: var(--color-ink);
+            margin: 0;
+            text-transform: uppercase;
+        }
+
+        /* Typografia Markdown */
+        hr {
+            display: none; /* Ukrywamy HR, bo powodowały puste strony przed H1 */
+        }
+
+        h1 {
+            font-family: var(--font-heading);
+            font-size: 15pt;
+            color: var(--color-ink);
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 25px; 
+            text-transform: uppercase;
+            letter-spacing: var(--tracking-cinematic);
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+
+        h2, h3, h4 {
+            font-family: var(--font-heading);
+            font-size: 11pt;
+            color: var(--color-ink);
+            margin: 20px 0 10px; 
+            border-bottom: 1px solid var(--color-paper-edge);
+            padding-bottom: 6px;
+            page-break-after: avoid;
+            break-after: avoid;
+            text-transform: uppercase;
+            letter-spacing: var(--tracking-cinematic);
+        }
+
+        p {
+            margin: 0 0 10px;
+            text-align: justify;
+            orphans: 4;
+            widows: 4;
+            color: var(--color-ink-2);
+        }
+
+        strong {
+            color: var(--color-ink);
+            font-weight: 700;
+        }
+
+        /* Usunięto style table, tr, th, td - tabele są konwertowane na .info-row */
+
+        /* Zmienne z Payload (oznaczone w backtickach w Markdown) */
+        code {
+            font-family: inherit;
+            font-weight: normal;
+            color: var(--color-ink);
+            background: none;
+            padding: 0;
+        }
+        
+        .certificate-section h1 {
+            margin-top: 0;
+        }
+
+        blockquote {
+            border-left: 2px solid var(--color-brass);
+            margin: 15px 0;
+            padding-left: 15px;
+            color: var(--color-ink-3);
+            font-style: italic;
+        }
+
+        ul, ol {
+            margin: 0 0 15px 0;
+            padding-left: 20px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        li {
+            margin-bottom: 6px;
+            text-align: justify;
+            orphans: 4;
+            widows: 4;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            color: var(--color-ink-2);
+        }
+        
+        /* Grid Kart dla Wykonawcy / Zamawiającego (Level 5) */
+        .parties-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        .party-card {
+            background: #FFFFFF;
+            border: 1px solid var(--color-paper-edge);
+            border-radius: var(--r-card);
+            padding: 24px 32px;
+        }
+
+        .party-title {
+            display: block;
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 12pt;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--color-ink);
+            margin-bottom: 20px;
+        }
+
+        .info-row {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 16px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(21, 23, 29, 0.05);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .info-label {
+            font-family: var(--font-mono);
+            font-size: 8pt;
+            letter-spacing: var(--tracking-mono-cap);
+            text-transform: uppercase;
+            color: var(--color-brass);
+            font-weight: 600;
+            padding-top: 2px;
+        }
+
+        .info-value {
+            font-size: 9.5pt;
+            line-height: 1.5;
+            color: var(--color-ink-2);
+        }
+
+        .card-footer-text {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--color-paper-edge);
+        }
+
+        .card-footer-text p, .card-footer-text blockquote {
+            margin: 0;
+            font-size: 9.5pt;
+            color: var(--color-ink-2);
+        }
+        
+        /* Stopka stronicowania ukryta w ciele, używamy domyślnej z Puppeteera */
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="data:image/png;base64,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" class="logo-img" alt="Logo" /><div class="header-title">NOBELION</div>
+    </div>
+    
+    <div class="content">
+        
+
+<h1>CZĘŚĆ I — SPECYFIKACJA ZAMÓWIENIA</h1>
+<div class="parties-grid">
+                <div class="party-card">
+                    <span class="party-title">WYKONAWCA</span>
+                    <div class="info-row"><div class="info-label">Firma</div><div class="info-value">NOBELION Spółka z ograniczoną odpowiedzialnością</div></div><div class="info-row"><div class="info-label">Adres</div><div class="info-value">ul. Pamiątkowa 2, 61-512 Poznań</div></div><div class="info-row"><div class="info-label">Rejestr</div><div class="info-value">NIP: 7831898094 | KRS: 0001088524 | REGON: 527810001</div></div><div class="info-row"><div class="info-label">Kontakt</div><div class="info-value">e-mail: kontakt@nobelion.pl</div></div>
+                </div>
+                <div class="party-card">
+                    <span class="party-title">ZAMAWIAJĄCY</span>
+                    <div class="info-row"><div class="info-label">Firma</div><div class="info-value"><code>Przedsiębiorstwo Innowacyjne &quot;Tech-Global&quot; Sp. z o.o.</code></div></div><div class="info-row"><div class="info-label">Adres</div><div class="info-value"><code>ul. Programistów 128, 00-001 Warszawa</code></div></div><div class="info-row"><div class="info-label">Rejestr</div><div class="info-value"><code>NIP: 1234567890</code></div></div><div class="info-row"><div class="info-label">Reprezentacja</div><div class="info-value"><code>reprezentowana przez: Jana Kowalskiego</code></div></div>
+                </div>
+            </div>
+
+            <div class="parties-grid">
+                <div class="party-card" style="margin-top: 10px;">
+                    <span class="party-title">ZAMÓWIENIE</span>
+                    <div class="info-row"><div class="info-label">Numer wyceny (Quote ID)</div><div class="info-value"><code>65f0a...123</code></div></div><div class="info-row"><div class="info-label">Numer zamówienia</div><div class="info-value"><code>ORD-2026-0001</code></div></div><div class="info-row"><div class="info-label">Przedmiot (skrót)</div><div class="info-value"><code>Realizacja usług programistycznych i wdrożeniowych zgodnie z zaakceptowanym zakresem prac</code></div></div><div class="info-row"><div class="info-label">Całkowite wynagrodzenie</div><div class="info-value"><code>12500</code> PLN netto</div></div><div class="info-row"><div class="info-label"><strong>Wybrany model płatności</strong></div><div class="info-value"><code>Płatność jednorazowa z rabatem 10%</code></div></div><div class="info-row"><div class="info-label">Szczegóły płatności</div><div class="info-value"><code>Opłacono w całości kwotę 11250 PLN netto.</code></div></div><div class="info-row"><div class="info-label">Abonament utrzymaniowy</div><div class="info-value"><code>TAK — 1500 PLN netto / mc, rozpoczęcie po końcowym odbiorze</code> PLN netto / mc, rozpoczęcie po końcowym odbiorze&quot;</div></div>
+                    <div class="card-footer-text"><blockquote>
+<p>Wybrany przez Zamawiającego model płatności (<code>Płatność jednorazowa z rabatem 10%</code>) stanowi rozstrzygnięcie opcji opisanych w §6 niniejszej Umowy. W przypadku wyboru abonamentu utrzymaniowego, link do płatności cyklicznej zostanie udostępniony Zamawiającemu dopiero po końcowym odbiorze prac.</p>
+</blockquote></div>
+                </div>
+            </div>
+
+
+<div style="page-break-before: always;"></div>
+<h1>CZĘŚĆ II — TREŚĆ UMOWY</h1>
+<p>Niniejsza Umowa zawierana jest w <strong>formie dokumentowej</strong> (art. 77² Kodeksu cywilnego) poprzez zaznaczenie pola akceptacji w systemie Nobelion (nobelion.pl) przed przejściem do płatności. Stronami Umowy są <strong>NOBELION Sp. z o.o.</strong> („Wykonawca&quot;) oraz podmiot lub osoba składająca zamówienie („Zamawiający&quot;), których pełne dane zostają utrwalone w Specyfikacji Zamówienia (Część I) generowanej po opłaceniu zamówienia. Wykonawca i Zamawiający zwani są łącznie „Stronami&quot;.</p>
+<h2>§1. Przedmiot Umowy</h2>
+<ol>
+<li>Wykonawca zobowiązuje się do zaprojektowania, zbudowania i wdrożenia dedykowanego systemu („<strong>System</strong>&quot;) zgodnie z zakresem określonym w Wycenie powiązanej z zamówieniem Zamawiającego, a Zamawiający zobowiązuje się do odbioru Systemu i zapłaty wynagrodzenia.</li>
+<li>Wycena, którą Zamawiający zaakceptował składając zamówienie, precyzyjnie określa funkcjonalności, technologie, harmonogram oraz wynagrodzenie i stanowi <strong>integralną część</strong> niniejszej Umowy. W razie rozbieżności między Umową a Wyceną, pierwszeństwo mają postanowienia Umowy.</li>
+<li>Elementy nieujęte w Wycenie leżą poza przedmiotem Umowy i podlegają §5 (Zarządzanie Zmianami Zakresu).</li>
+</ol>
+<h2>§2. Harmonogram Realizacji</h2>
+<ol>
+<li>Realizacja dzieli się na etapy opisane w Wycenie. Prace rozpoczynają się z chwilą zaksięgowania pierwszej płatności wynikającej z wybranego modelu (§6).</li>
+<li>Harmonogram jest planem technicznym przy założeniu terminowego współdziałania Zamawiającego. Opóźnienia po stronie Zamawiającego (dostępy, treści, decyzje) proporcjonalnie przesuwają harmonogram, bez prawa Zamawiającego do roszczeń z tego tytułu.</li>
+<li>O okolicznościach mogących wpłynąć na termin Wykonawca informuje niezwłocznie, podając szacowany nowy termin.</li>
+</ol>
+<h2>§3. Obowiązki Stron</h2>
+<ol>
+<li><strong>Wykonawca zobowiązuje się do:</strong> realizacji Systemu zgodnie z Wyceną i zasadami sztuki programistycznej; bieżącego informowania o istotnych postępach i decyzjach technicznych; zachowania poufności powierzonych danych.</li>
+<li><strong>Zamawiający zobowiązuje się do:</strong> dostarczenia niezbędnych dostępów, kont, treści i danych testowych w terminie <strong>3 dni roboczych</strong> od zawarcia Umowy lub pisemnego wezwania; wyznaczenia jednej decyzyjnej osoby kontaktowej upoważnionej do zatwierdzania etapów; aktywnego udziału w weryfikacji i odbiorze.</li>
+<li>Brak dostępności osoby kontaktowej lub opóźnienia w dostarczeniu zasobów traktowane są jako okoliczności po stronie Zamawiającego i nie stanowią podstawy roszczeń wobec Wykonawcy.</li>
+</ol>
+<h2>§4. Iteracyjny Charakter Prac, Odbiór Etapów i Poprawki</h2>
+<ol>
+<li>Strony przyjmują, że przedmiotem Umowy jest dzieło tworzone na indywidualne zamówienie, a proces realizacji ma charakter iteracyjny. <strong>Miarą prawidłowości wykonania jest zgodność Systemu ze specyfikacją</strong> określoną w Wycenie i Briefie — nie zaś subiektywne preferencje estetyczne lub upodobania Zamawiającego.</li>
+<li>Po ukończeniu etapu Wykonawca powiadamia o gotowości do odbioru, udostępniając środowisko testowe, demonstrację lub dokumentację. Zamawiający ma <strong>5 dni roboczych</strong> na pisemne zgłoszenie konkretnych uwag odnoszących się do zgodności etapu z Wyceną.</li>
+<li><strong>Rundy poprawek:</strong> W ramach wynagrodzenia Zamawiającemu przysługują <strong>dwie (2) rundy poprawek na każdy etap</strong>, obejmujące usunięcie rozbieżności pomiędzy dostarczonym etapem a zatwierdzoną specyfikacją. Wykonawca realizuje poprawki w rozsądnym terminie technicznym.</li>
+<li>Uwagi i życzenia wykraczające poza zatwierdzoną specyfikację — nowe funkcje, zmiana przyjętych założeń, przeprojektowanie zaakceptowanych wcześniej elementów lub kolejne rundy ponad limit z ust. 3 — <strong>nie stanowią poprawek, lecz zmianę zakresu</strong> i podlegają §5 (Change Request).</li>
+<li>Brak pisemnych uwag w terminie z ust. 2 stanowi <strong>milczącą akceptację</strong> etapu, równoważną akceptacji wyraźnej; uprawnia Wykonawcę do fakturowania etapu i przejścia do kolejnego.</li>
+<li>Etap odebrany jest punktem zamkniętym. Po końcowym odbiorze całości Systemu usuwanie ujawnionych później niezgodności ze specyfikacją odbywa się na zasadach gwarancji (§11).</li>
+</ol>
+<h2>§5. Zarządzanie Zmianami Zakresu (Change Request)</h2>
+<ol>
+<li>Zakres Systemu wyczerpująco definiuje Wycena. Dodatkowe funkcjonalności, moduły i integracje stanowią zmianę zakresu.</li>
+<li>Zmiana wymaga pisemnego wniosku Zamawiającego; Wykonawca wycenia ją w 5 dni roboczych; realizacja następuje po pisemnej akceptacji wyceny zmiany i podlega odrębnym rozliczeniom.</li>
+<li>Wykonawca może odmówić realizacji zmiany zagrażającej stabilności, bezpieczeństwu lub spójności architektonicznej Systemu.</li>
+</ol>
+<div style="page-break-before: always;"></div>
+<h2>§6. Wynagrodzenie i Modele Płatności</h2>
+<ol>
+<li>Całkowite wynagrodzenie oraz zakres określa Wycena powiązana z zamówieniem. Do kwot netto dolicza się podatek VAT według stawki obowiązującej w dniu wystawienia faktury.</li>
+<li>Przy składaniu zamówienia Zamawiający <strong>wybiera jeden z poniższych modeli płatności</strong>. Konkretny wybrany model oraz kwoty zostają utrwalone w Specyfikacji Zamówienia (Część I). Dostępne modele:
+<ul>
+<li><strong>a) Płatność jednorazowa z góry — z rabatem 10%:</strong> całość wynagrodzenia, pomniejszona o rabat w wysokości 10%, płatna z góry. Prace rozpoczynają się po zaksięgowaniu płatności.</li>
+<li><strong>b) Płatność podzielona 50/50 — bez rabatu:</strong> I rata w wysokości 50% wynagrodzenia płatna przed startem; II rata w wysokości pozostałych 50% płatna <strong>po końcowym odbiorze Systemu</strong>. Model ten nie obejmuje rabatu. Link do płatności II raty Wykonawca udostępnia Zamawiającemu po zakończeniu prac.</li>
+</ul>
+</li>
+<li><strong>Zadatek:</strong> Płatność startowa — I rata w modelu 50/50 albo część odpowiadająca 50% wartości zamówienia w modelu płatności z góry — stanowi <strong>zadatek</strong> w rozumieniu art. 394 Kodeksu cywilnego. W razie rezygnacji Zamawiającego bez winy Wykonawcy zadatek przepada; w razie niewykonania Umowy z winy Wykonawcy podlega zwrotowi w podwójnej wysokości.</li>
+<li><strong>Abonament utrzymaniowy (opcjonalny):</strong> Zamawiający może objąć System płatną opieką utrzymaniową w zakresie i za kwotę miesięczną wskazaną w Specyfikacji Zamówienia, obejmującą bieżące utrzymanie, monitoring, kopie zapasowe, drobny rozwój oraz wsparcie priorytetowe. Abonament stanowi kontynuację opieki nad Systemem i <strong>rozpoczyna się po upływie bezpłatnego okresu gwarancyjnego (§11)</strong> — link do płatności cyklicznej Wykonawca udostępnia Zamawiającemu przed zakończeniem tego okresu. Zamawiający może samodzielnie zarządzać abonamentem oraz zrezygnować z niego w dowolnym momencie poprzez panel płatności operatora (Stripe), ze skutkiem na koniec opłaconego okresu rozliczeniowego.</li>
+<li>Faktury wystawiane są w terminie 3 dni roboczych od zdarzenia rozliczeniowego; termin płatności wynosi <strong>7 dni</strong> od daty wystawienia. Płatności realizowane są elektronicznie (operator Stripe) lub przelewem bankowym.</li>
+<li>W razie opóźnienia płatności przekraczającego 3 dni robocze Wykonawca jest uprawniony do: naliczania odsetek ustawowych za opóźnienie w transakcjach handlowych; wstrzymania prac nad kolejnymi etapami; ograniczenia lub cofnięcia dostępów do środowisk deweloperskich i testowych — bez odpowiedzialności wobec Zamawiającego z tego tytułu.</li>
+</ol>
+<h2>§7. Własność Intelektualna</h2>
+<ol>
+<li>Ze względu na formę dokumentową Umowy, przeniesienie autorskich praw majątkowych do kodu wymagałoby odrębnej umowy w formie pisemnej (art. 53 Ustawy o prawie autorskim i prawach pokrewnych). W to miejsce Wykonawca udziela licencji na zasadach poniższych.</li>
+<li>Z chwilą <strong>zaksięgowania 100% całkowitego wynagrodzenia</strong> Wykonawca udziela Zamawiającemu wyłącznej, nieograniczonej terytorialnie ani czasowo <strong>licencji</strong> na korzystanie z Systemu w działalności gospodarczej, na polach eksploatacji: utrwalanie, zwielokrotnianie, modyfikowanie (w tym przez własne lub zewnętrzne zespoły), użytkowanie w infrastrukturze własnej i chmurowej.</li>
+<li>Na pisemne żądanie Zamawiającego złożone po opłaceniu 100% wynagrodzenia Strony zawrą odrębną umowę przeniesienia majątkowych praw autorskich (podpisy własnoręczne lub kwalifikowane podpisy elektroniczne) — bez dodatkowego wynagrodzenia.</li>
+<li>Biblioteki open-source oraz narzędzia podmiotów trzecich wbudowane w System podlegają własnym licencjom, dobranym pod komercyjny użytek Zamawiającego.</li>
+<li>Do czasu zapłaty pełnego wynagrodzenia Zamawiający nie jest uprawniony do modyfikowania, redystrybucji ani sublicencjonowania Systemu.</li>
+</ol>
+<h2>§8. Niezależność Usług Zewnętrznych (Third-Party)</h2>
+<ol>
+<li>System może opierać się na integracjach z dostawcami zewnętrznymi (m.in. OpenAI, Google, Anthropic, Stripe, n8n, Supabase, Resend, Make, FakturaXL oraz innymi wskazanymi w Wycenie).</li>
+<li><strong>Infrastruktura, na której działa System</strong> (serwer, hosting, bazy danych, konta usług zewnętrznych, klucze API), prowadzona jest <strong>na rachunek i w ramach kont Zamawiającego</strong>. Wykonawca dobiera, konfiguruje i rekomenduje odpowiednie narzędzia, lecz nie hostuje usług Zamawiającego we własnym imieniu — koszty subskrypcji i zużycia tych usług ponosi bezpośrednio Zamawiający, zgodnie z zasadą „płacisz za to, czego używasz&quot;. Po końcowym odbiorze pełna kontrola nad infrastrukturą, kodem i danymi należy do Zamawiającego.</li>
+<li>Wykonawca nie ponosi odpowiedzialności za przerwy w dostępności, awarie, jednostronne zmiany cennikowe, zmiany struktury API lub zaprzestanie świadczenia usług przez dostawców zewnętrznych.</li>
+<li>Adaptacja Systemu wynikająca ze zmian po stronie dostawców (<em>breaking changes</em>) stanowi odrębną, płatną usługę serwisową; Wykonawca informuje o jej konieczności niezwłocznie po wykryciu.</li>
+</ol>
+<h2>§9. Poufność</h2>
+<ol>
+<li>Strony zachowują w ścisłej tajemnicy informacje technologiczne, handlowe i organizacyjne ujawnione w związku z realizacją Projektu, bez względu na formę przekazania.</li>
+<li>Obowiązek nie dotyczy informacji publicznie znanych bez winy Stron, ujawnionych z winy drugiej Strony lub których ujawnienie nakazuje bezwzględnie obowiązujące prawo.</li>
+<li>Zamawiający wyraża zgodę na umieszczenie ogólnej informacji o projekcie (branża, technologie, skrótowy opis problemu i rozwiązania) w portfolio Wykonawcy — bez ujawniania danych poufnych, finansowych ani identyfikujących Zamawiającego bez jego odrębnej zgody.</li>
+</ol>
+<h2>§10. Rękojmia i Ograniczenie Odpowiedzialności</h2>
+<ol>
+<li><strong>Wobec Zamawiającego będącego przedsiębiorcą (B2B)</strong> Strony wyłączają odpowiedzialność Wykonawcy z tytułu <strong>rękojmi za wady</strong> (art. 558 §1 Kodeksu cywilnego). Wyłączenie to nie pozbawia Zamawiającego ochrony — w jej miejsce wchodzą procedura odbioru i poprawek (§4) oraz gwarancja techniczna (§11), które kompleksowo regulują usuwanie niezgodności Systemu ze specyfikacją.</li>
+<li><strong>Wobec Zamawiającego będącego konsumentem (B2C)</strong> wyłączenie z ust. 1 nie ma zastosowania. Stosuje się bezwzględnie obowiązujące przepisy o zgodności świadczenia z umową oraz pozostałe uprawnienia wynikające z ustawy o prawach konsumenta i Kodeksu cywilnego, których niniejsza Umowa nie ogranicza ani nie wyłącza.</li>
+<li>Łączna, całkowita odpowiedzialność odszkodowawcza Wykonawcy (kontraktowa i deliktowa łącznie) jest ograniczona do <strong>100% wynagrodzenia netto</strong> faktycznie zapłaconego przez Zamawiającego na moment zaistnienia szkody. Ograniczenie nie znajduje zastosowania wobec konsumentów w zakresie, w jakim naruszałoby ich prawa ustawowe.</li>
+<li>Wykonawca wyłącza odpowiedzialność za utracone korzyści (<em>lucrum cessans</em>) oraz szkody pośrednie — w zakresie dozwolonym prawem, z wyłączeniem szkód wyrządzonych z winy umyślnej oraz roszczeń konsumentów chronionych bezwzględnie obowiązującymi przepisami.</li>
+</ol>
+<div style="page-break-before: always;"></div>
+<h2>§11. Gwarancja Techniczna</h2>
+<ol>
+<li>Po końcowym odbiorze Systemu Wykonawca udziela <strong>bezpłatnej</strong> gwarancji na błędy funkcjonalne (niezgodność działania z zatwierdzoną specyfikacją z Wyceny) przez okres <strong>3 (trzech) miesięcy</strong> od dnia odbioru, chyba że Wycena przewiduje okres dłuższy.</li>
+<li>Gwarancja obejmuje <strong>wyłącznie nieodpłatne usuwanie niezgodności Systemu ze specyfikacją</strong> i nie obejmuje rozwoju, nowych funkcji, adaptacji do zmian u dostawców zewnętrznych (§8) ani bieżącego utrzymania, które podlegają odpowiednio §5 lub abonamentowi utrzymaniowemu (§6 ust. 4). Abonament utrzymaniowy stanowi odrębną, opcjonalną kontynuację opieki nad działającym Systemem i — o ile Zamawiający go wybierze — <strong>rozpoczyna się po upływie okresu gwarancyjnego</strong>.</li>
+<li>Zgłoszenia przyjmowane są na adres kontakt@nobelion.pl; czas reakcji do 3 dni roboczych.</li>
+<li>Gwarancja nie obejmuje usterek wynikłych z: modyfikacji kodu przez Zamawiającego lub osoby trzecie bez wiedzy Wykonawcy; zmian infrastrukturalnych po stronie Zamawiającego; zmian w usługach zewnętrznych (§8); użytkowania niezgodnego z dokumentacją.</li>
+</ol>
+<h2>§12. Rozwiązanie Umowy</h2>
+<ol>
+<li>Każda Strona może wypowiedzieć Umowę ze skutkiem natychmiastowym w razie rażącego naruszenia jej postanowień przez drugą Stronę, po uprzednim pisemnym wezwaniu z 7-dniowym terminem zaradczym i jego bezskutecznym upływem.</li>
+<li>W razie rezygnacji Zamawiającego bez winy Wykonawcy: zadatek przepada; Zamawiający płaci pełne wynagrodzenie za etapy ukończone i przekazane do odbioru na moment wypowiedzenia; Wykonawca wstrzymuje dalsze prace.</li>
+<li>W razie rozwiązania z wyłącznej winy Wykonawcy zwraca on płatności za etapy niezrealizowane należycie.</li>
+</ol>
+<h2>§13. Postanowienia Końcowe</h2>
+<ol>
+<li>W sprawach nieuregulowanych stosuje się Kodeks cywilny, Ustawę o prawie autorskim i prawach pokrewnych oraz inne bezwzględnie obowiązujące przepisy prawa polskiego.</li>
+<li>Zmiany Umowy wymagają formy dokumentowej (korespondencja e-mail lub akceptacja w panelu klienta) pod rygorem nieważności.</li>
+<li>Spory rozstrzyga sąd powszechny właściwy miejscowo dla siedziby Wykonawcy — <strong>sąd właściwy dla m. Poznania</strong>.</li>
+<li>Niniejsza Umowa zostaje zawarta poprzez zaznaczenie pola akceptacji przed przejściem do płatności. Po opłaceniu zamówienia Wykonawca generuje spersonalizowany dokument PDF zawierający Specyfikację Zamówienia (Część I), niniejszą treść Umowy w zaakceptowanej wersji oraz Certyfikat Akceptacji (Część III). Dokument PDF stanowi potwierdzenie i integralną część Umowy. Personalizacja nie wprowadza nowych postanowień — utrwala wyłącznie dane Stron oraz wybory dokonane przez Zamawiającego.</li>
+</ol>
+
+
+<div style="page-break-before: always;"></div>
+<h1>CZĘŚĆ III — CERTYFIKAT AKCEPTACJI</h1>
+<p>Niniejszym potwierdza się, że Zamawiający zaakceptował powyższą treść Umowy (Część II) w formie dokumentowej, poprzez zaznaczenie pola akceptacji w systemie Nobelion przed przejściem do płatności, oświadczając jednocześnie, że jest osobą uprawnioną do jej zawarcia oraz że zapoznał się z pełną treścią Umowy i powiązanej Wyceny.</p>
+<div class="party-card table-card" style="margin: 20px 0; break-inside: avoid; page-break-inside: avoid;">
+            <div class="info-row"><div class="info-label">Imię i nazwisko akceptującego</div><div class="info-value"><code>Jan Kowalski</code></div></div><div class="info-row"><div class="info-label">Adres e-mail</div><div class="info-value"><code>jan.kowalski@tech-global.pl</code></div></div><div class="info-row"><div class="info-label">Działa jako</div><div class="info-value"><code>Reprezentant firmy</code></div></div><div class="info-row"><div class="info-label">Data i godzina akceptacji</div><div class="info-value"><code>19.06.2026, 11:46:35</code></div></div><div class="info-row"><div class="info-label">Adres IP akceptanta</div><div class="info-value"><code>192.168.1.100</code></div></div><div class="info-row"><div class="info-label"><strong>Wersja zaakceptowanej Umowy</strong></div><div class="info-value"><code>1</code></div></div><div class="info-row"><div class="info-label">Numer wyceny (Quote ID)</div><div class="info-value"><code>65f0a...123</code></div></div><div class="info-row"><div class="info-label">Numer zamówienia</div><div class="info-value"><code>ORD-2026-0001</code></div></div><div class="info-row"><div class="info-label">Identyfikator transakcji (Stripe)</div><div class="info-value"><code>Zaksięgowano z użyciem Stripe (cs_test_...)</code></div></div>
+        </div>
+<p><em>Pełen log akceptacji — obejmujący dokładną treść zaakceptowanej wersji Umowy, dane akceptanta, znacznik czasu i adres IP — jest trwale i niezmienialnie przechowywany w systemie informatycznym Wykonawcy i stanowi materiał dowodowy potwierdzający zawarcie oraz treść Umowy. Dokument wygenerowany automatycznie przez platformę Nobelion (nobelion.pl).</em></p>
+
+    </div>
+</body>
+</html>
